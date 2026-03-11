@@ -1,4 +1,4 @@
-﻿Phase 1 Scope
+﻿# Phase 1 Scope
 
 - tracks foreground desktop apps
 - tracks idle time
