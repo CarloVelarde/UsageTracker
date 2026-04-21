@@ -3,6 +3,7 @@
 import ctypes
 import json
 import time
+from dashboard import publish_dashboard
 from ctypes import wintypes
 from datetime import datetime
 from pathlib import Path
@@ -147,11 +148,16 @@ class UsageTracker:
         self._did_shutdown = True
         run_ended_at = datetime.now()
         self.finish_current_session(run_ended_at)
-        output_path = self.save_sessions(run_ended_at)
+        payload, output_path = self.save_sessions(run_ended_at)
         self.print_summary()
         print(f"Saved session data to: {output_path}")
+        dashboard_url = publish_dashboard(payload, output_path)
+        if dashboard_url is None:
+            print("Dashboard build not found. Run `npm install` and `npm run build` in `dashboard/` to enable the browser report.")
+        else:
+            print(f"Opened dashboard at: {dashboard_url}")
 
-    def save_sessions(self, run_ended_at: datetime) -> Path:
+    def save_sessions(self, run_ended_at: datetime) -> tuple[dict, Path]:
         output_path = DATA_DIR / f"usage_{self.run_started_at.strftime('%Y%m%d_%H%M%S')}.json"
         payload = {
             "run_started_at": self.run_started_at.isoformat(timespec="seconds"),
@@ -161,7 +167,7 @@ class UsageTracker:
             "sessions": self.sessions,
         }
         output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        return output_path
+        return payload, output_path
 
     def print_summary(self) -> None:
         app_totals: dict[str, float] = {}

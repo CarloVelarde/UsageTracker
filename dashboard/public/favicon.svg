@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Usage dashboard">
+  <defs>
+    <linearGradient id="ring" x1="12%" y1="12%" x2="88%" y2="88%">
+      <stop offset="0%" stop-color="#5B7CFA" />
+      <stop offset="100%" stop-color="#78D7C6" />
+    </linearGradient>
+    <linearGradient id="bars" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F2C86C" />
+      <stop offset="100%" stop-color="#F58B54" />
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="30" fill="#EEF4FF" />
+  <circle cx="64" cy="64" r="38" fill="none" stroke="url(#ring)" stroke-width="14" stroke-linecap="round" stroke-dasharray="176 72" transform="rotate(-90 64 64)" />
+  <circle cx="64" cy="64" r="18" fill="#FFFFFF" />
+  <rect x="26" y="80" width="12" height="20" rx="6" fill="url(#bars)" />
+  <rect x="46" y="68" width="12" height="32" rx="6" fill="#8FB2FF" />
+  <rect x="66" y="56" width="12" height="44" rx="6" fill="#5B7CFA" />
+  <rect x="86" y="72" width="12" height="28" rx="6" fill="#C8D4FF" />
+</svg>
