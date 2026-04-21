@@ -6,12 +6,14 @@ import subprocess
 import sys
 import time
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 ROOT_DIR = Path(__file__).resolve().parent
 FRONTEND_DIR = ROOT_DIR / "dashboard"
 DIST_DIR = FRONTEND_DIR / "dist"
+DATA_DIR = ROOT_DIR / "data"
 DASHBOARD_ENTRY = DIST_DIR / "index.html"
 REPORT_DATA_SCRIPT = DIST_DIR / "report-data.js"
 DASHBOARD_HOST = "127.0.0.1"
@@ -64,13 +66,69 @@ def get_dashboard_url() -> str:
     return DASHBOARD_ENTRY.resolve().as_uri()
 
 
+def get_report_day(report_payload: dict[str, Any]) -> str | None:
+    started_at = report_payload.get("run_started_at")
+    if not isinstance(started_at, str):
+        return None
+
+    try:
+        return datetime.fromisoformat(started_at).date().isoformat()
+    except ValueError:
+        return None
+
+
+def load_report(path: Path) -> dict[str, Any] | None:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def aggregate_same_day_reports(report_payload: dict[str, Any]) -> dict[str, Any]:
+    report_day = get_report_day(report_payload)
+    if report_day is None:
+        return report_payload
+
+    matching_reports: list[dict[str, Any]] = []
+    for path in sorted(DATA_DIR.glob("usage_*.json")):
+        loaded = load_report(path)
+        if loaded is None:
+            continue
+        if get_report_day(loaded) == report_day:
+            matching_reports.append(loaded)
+
+    if not matching_reports:
+        return report_payload
+
+    matching_reports.sort(key=lambda payload: payload.get("run_started_at", ""))
+    combined_sessions: list[dict[str, Any]] = []
+    for payload in matching_reports:
+        sessions = payload.get("sessions")
+        if isinstance(sessions, list):
+            combined_sessions.extend(sessions)
+
+    return {
+        **report_payload,
+        "run_started_at": matching_reports[0].get(
+            "run_started_at",
+            report_payload.get("run_started_at"),
+        ),
+        "run_ended_at": matching_reports[-1].get(
+            "run_ended_at",
+            report_payload.get("run_ended_at"),
+        ),
+        "sessions": combined_sessions,
+    }
+
+
 def publish_dashboard(report_payload: dict[str, Any], source_path: Path) -> str | None:
     """Write the latest report into the built dashboard and open it locally."""
     if not DASHBOARD_ENTRY.exists():
         return None
 
+    aggregated_payload = aggregate_same_day_reports(report_payload)
     dashboard_payload = {
-        **report_payload,
+        **aggregated_payload,
         "source_file_name": source_path.name,
         "source_file_path": str(source_path),
     }

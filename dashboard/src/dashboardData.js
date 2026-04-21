@@ -19,6 +19,24 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max)
 }
 
+function formatAppName(appName) {
+  if (!appName) {
+    return 'Unknown'
+  }
+
+  const withoutExtension = appName.replace(/\.exe$/i, '').trim()
+  const normalized = withoutExtension
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+  if (!normalized) {
+    return 'Unknown'
+  }
+
+  return normalized.replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
 export function formatDuration(totalSeconds) {
   const roundedSeconds = Math.max(0, Math.round(totalSeconds ?? 0))
   const hours = Math.floor(roundedSeconds / 3600)
@@ -65,66 +83,120 @@ function createTicks(runStart, runEnd, tickCount = 5) {
   })
 }
 
-function createHourlyBuckets(sessions, runStart, runEnd) {
-  const startHour = new Date(runStart)
-  startHour.setMinutes(0, 0, 0)
+function createTimeBuckets(sessions, runStart, runEnd, minBuckets, maxBuckets, targetMinutesPerBucket) {
+  const totalMs = Math.max(runEnd - runStart, 1)
+  const totalMinutes = totalMs / 60000
+  const bucketCount = clamp(
+    Math.ceil(totalMinutes / targetMinutesPerBucket),
+    minBuckets,
+    maxBuckets,
+  )
+  const bucketMs = totalMs / bucketCount
 
-  const endHour = new Date(runEnd)
-  endHour.setMinutes(0, 0, 0)
+  return Array.from({ length: bucketCount }, (_, index) => {
+    const start = new Date(runStart.getTime() + index * bucketMs)
+    const end =
+      index === bucketCount - 1
+        ? new Date(runEnd)
+        : new Date(runStart.getTime() + (index + 1) * bucketMs)
 
-  const buckets = new Map()
-  for (
-    let cursor = new Date(startHour);
-    cursor <= endHour;
-    cursor = new Date(cursor.getTime() + 60 * 60 * 1000)
-  ) {
-    const key = cursor.toISOString()
-    buckets.set(key, {
-      hourKey: key,
-      label: cursor.toLocaleTimeString([], { hour: 'numeric' }),
-      active: 0,
-      idle: 0,
-    })
-  }
+    let active = 0
+    let idle = 0
+    const appUsage = new Map()
 
-  sessions.forEach((session) => {
-    let segmentStart = toDate(session.start_timestamp)
-    const sessionEnd = toDate(session.end_timestamp)
+    sessions.forEach((session) => {
+      const sessionStart = toDate(session.start_timestamp)
+      const sessionEnd = toDate(session.end_timestamp)
+      const overlapStart = Math.max(start.getTime(), sessionStart.getTime())
+      const overlapEnd = Math.min(end.getTime(), sessionEnd.getTime())
 
-    while (segmentStart < sessionEnd) {
-      const nextHour = new Date(segmentStart)
-      nextHour.setMinutes(60, 0, 0)
-
-      const sliceEnd = nextHour < sessionEnd ? nextHour : sessionEnd
-      const sliceSeconds = Math.max((sliceEnd - segmentStart) / 1000, 0)
-      const bucketKey = new Date(
-        segmentStart.getFullYear(),
-        segmentStart.getMonth(),
-        segmentStart.getDate(),
-        segmentStart.getHours(),
-      ).toISOString()
-      const bucket = buckets.get(bucketKey)
-
-      if (bucket) {
-        if (session.session_type === 'idle') {
-          bucket.idle += sliceSeconds
-        } else {
-          bucket.active += sliceSeconds
-        }
+      if (overlapEnd <= overlapStart) {
+        return
       }
 
-      segmentStart = sliceEnd
+      const overlapSeconds = (overlapEnd - overlapStart) / 1000
+      if (session.session_type === 'idle') {
+        idle += overlapSeconds
+        appUsage.set('Idle', (appUsage.get('Idle') ?? 0) + overlapSeconds)
+      } else {
+        active += overlapSeconds
+        appUsage.set(
+          session.app_display_name,
+          (appUsage.get(session.app_display_name) ?? 0) + overlapSeconds,
+        )
+      }
+    })
+
+    let dominantApp = 'No Tracking'
+    let dominantSeconds = 0
+    for (const [appName, seconds] of appUsage.entries()) {
+      if (seconds > dominantSeconds) {
+        dominantApp = appName
+        dominantSeconds = seconds
+      }
+    }
+
+    return {
+      id: `${start.toISOString()}-${index}`,
+      label: formatClock(start),
+      startLabel: formatClock(start),
+      endLabel: formatClock(end),
+      active,
+      idle,
+      total: active + idle,
+      dominantApp,
+      dominantSeconds,
+      isIdle: dominantApp === 'Idle',
+      isEmpty: dominantApp === 'No Tracking',
     }
   })
+}
 
-  return [...buckets.values()]
+function createTimelineBins(sessions, runStart, runEnd, appColors) {
+  return createTimeBuckets(sessions, runStart, runEnd, 32, 72, 12).map((bucket) => {
+    let color = '#e4ebf7'
+    if (bucket.isIdle) {
+      color = IDLE_COLOR
+    } else if (!bucket.isEmpty) {
+      color = appColors.get(bucket.dominantApp) ?? APP_COLORS[0]
+    }
+
+    return {
+      ...bucket,
+      color,
+      tooltip: `${bucket.startLabel} - ${bucket.endLabel} | ${bucket.dominantApp}`,
+    }
+  })
+}
+
+function createRhythmBuckets(sessions, runStart, runEnd) {
+  return createTimeBuckets(sessions, runStart, runEnd, 20, 48, 20).map((bucket) => ({
+    ...bucket,
+    magnitude: bucket.active > 0 ? bucket.active : bucket.idle,
+    tone: bucket.active > 0 ? 'active' : bucket.idle > 0 ? 'idle' : 'empty',
+  }))
+}
+
+function createBucketTickLabels(buckets, tickCount = 5) {
+  if (buckets.length === 0) {
+    return []
+  }
+
+  return Array.from({ length: tickCount }, (_, index) => {
+    const ratio = tickCount === 1 ? 0 : index / (tickCount - 1)
+    const bucketIndex = Math.min(
+      buckets.length - 1,
+      Math.round(ratio * (buckets.length - 1)),
+    )
+    return buckets[bucketIndex].label
+  }).filter((value, index, values) => values.indexOf(value) === index)
 }
 
 function summarizeApps(activeSessions) {
   const appTotals = new Map()
 
   activeSessions.forEach((session) => {
-    const key = session.app_name || 'Unknown'
+    const key = session.app_display_name
     const existing = appTotals.get(key) ?? {
       name: key,
       seconds: 0,
@@ -148,23 +220,13 @@ function summarizeApps(activeSessions) {
 
   if (sortedApps.length <= 5) {
     return {
-      displayApps: sortedApps,
+      displayApps: sortedApps.slice(0, 5),
       allApps: sortedApps,
     }
   }
 
-  const visibleApps = sortedApps.slice(0, 5)
-  const otherTotals = sortedApps.slice(5).reduce(
-    (accumulator, item) => {
-      accumulator.seconds += item.seconds
-      accumulator.sessions += item.sessions
-      return accumulator
-    },
-    { name: 'Other', seconds: 0, sessions: 0 },
-  )
-
   return {
-    displayApps: [...visibleApps, otherTotals],
+    displayApps: sortedApps.slice(0, 5),
     allApps: sortedApps,
   }
 }
@@ -175,38 +237,16 @@ function countSwitches(activeSessions) {
   }
 
   let switches = 0
-  let previous = activeSessions[0].app_name
+  let previous = activeSessions[0].app_display_name
 
   for (const session of activeSessions.slice(1)) {
-    if (session.app_name !== previous) {
+    if (session.app_display_name !== previous) {
       switches += 1
-      previous = session.app_name
+      previous = session.app_display_name
     }
   }
 
   return switches
-}
-
-function buildTimelineSegments(sessions, runStart, runEnd, appColors) {
-  const totalMs = Math.max(runEnd - runStart, 1)
-
-  return sessions.map((session) => {
-    const sessionStart = toDate(session.start_timestamp)
-    const sessionEnd = toDate(session.end_timestamp)
-    const left = clamp(((sessionStart - runStart) / totalMs) * 100, 0, 100)
-    const width = clamp(((sessionEnd - sessionStart) / totalMs) * 100, 0.4, 100)
-    const idle = session.session_type === 'idle'
-
-    return {
-      key: `${session.start_timestamp}-${session.app_name}-${session.session_type}`,
-      label: idle ? 'Idle' : session.app_name,
-      detail: `${formatClock(session.start_timestamp)} - ${formatClock(session.end_timestamp)}`,
-      left,
-      width,
-      color: idle ? IDLE_COLOR : appColors.get(session.app_name) ?? APP_COLORS[0],
-      idle,
-    }
-  })
 }
 
 function buildReflection({
@@ -232,7 +272,7 @@ function buildReflection({
 
   if (longestSession) {
     lines.push(
-      `Your longest uninterrupted stretch lasted ${formatDuration(longestSession.duration_seconds)} in ${longestSession.app_name}.`,
+      `Your longest uninterrupted stretch lasted ${formatDuration(longestSession.duration_seconds)} in ${longestSession.app_display_name}.`,
     )
   }
 
@@ -244,9 +284,15 @@ function buildReflection({
 }
 
 export function buildDashboardModel(report) {
-  const sessions = [...(report?.sessions ?? [])].sort((left, right) => {
-    return toDate(left.start_timestamp) - toDate(right.start_timestamp)
-  })
+  const sessions = [...(report?.sessions ?? [])]
+    .map((session) => ({
+      ...session,
+      app_display_name:
+        session.session_type === 'idle'
+          ? 'Idle'
+          : formatAppName(session.app_name),
+    }))
+    .sort((left, right) => toDate(left.start_timestamp) - toDate(right.start_timestamp))
 
   const runStart = toDate(report?.run_started_at ?? new Date())
   const runEnd = toDate(report?.run_ended_at ?? report?.run_started_at ?? new Date())
@@ -275,7 +321,9 @@ export function buildDashboardModel(report) {
     return (right.duration_seconds ?? 0) - (left.duration_seconds ?? 0)
   })[0]
   const switchCount = countSwitches(activeSessions)
-  const uniqueApps = new Set(activeSessions.map((session) => session.app_name)).size
+  const uniqueApps = new Set(activeSessions.map((session) => session.app_display_name)).size
+  const timelineBins = createTimelineBins(sessions, runStart, runEnd, appColors)
+  const rhythmBuckets = createRhythmBuckets(sessions, runStart, runEnd)
 
   return {
     report,
@@ -292,8 +340,9 @@ export function buildDashboardModel(report) {
     dominantApp,
     longestSession,
     appBreakdown,
-    hourlyBuckets: createHourlyBuckets(sessions, runStart, runEnd),
-    timelineSegments: buildTimelineSegments(sessions, runStart, runEnd, appColors),
+    hourlyBuckets: rhythmBuckets,
+    rhythmTickLabels: createBucketTickLabels(rhythmBuckets),
+    timelineBins,
     timelineTicks: createTicks(runStart, runEnd),
     reflectionLines: buildReflection({
       dominantApp,

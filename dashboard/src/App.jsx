@@ -102,8 +102,9 @@ function UsageTooltip({ active, payload, label }) {
     return null
   }
 
-  const activeSeconds = payload[0]?.value ?? 0
-  const idleSeconds = payload[1]?.value ?? 0
+  const bucket = payload[0]?.payload
+  const activeSeconds = bucket?.active ?? 0
+  const idleSeconds = bucket?.idle ?? 0
 
   return (
     <div className="chart-tooltip">
@@ -216,7 +217,7 @@ function App() {
             </div>
             <div className="pill pill-soft">
               <Compass size={15} strokeWidth={2.1} />
-              {model.uniqueApps} apps
+              Top 5 of {model.uniqueApps} apps
             </div>
           </div>
 
@@ -336,17 +337,18 @@ function App() {
           </div>
 
           <div className="timeline-card">
-            <div className="timeline-track">
-              {model.timelineSegments.map((segment) => (
+            <div
+              className="timeline-track"
+              style={{
+                gridTemplateColumns: `repeat(${model.timelineBins.length}, minmax(0, 1fr))`,
+              }}
+            >
+              {model.timelineBins.map((bin) => (
                 <div
-                  className={`timeline-segment${segment.idle ? ' timeline-idle' : ''}`}
-                  key={segment.key}
-                  title={`${segment.label} | ${segment.detail}`}
-                  style={{
-                    left: `${segment.left}%`,
-                    width: `${segment.width}%`,
-                    background: segment.color,
-                  }}
+                  className={`timeline-bin${bin.isIdle ? ' timeline-idle' : ''}${bin.isEmpty ? ' timeline-empty' : ''}`}
+                  key={bin.id}
+                  title={bin.tooltip}
+                  style={{ background: bin.color }}
                 />
               ))}
             </div>
@@ -370,7 +372,7 @@ function App() {
               <p className="eyebrow">Longest stretch</p>
               <strong>
                 {model.longestSession
-                  ? `${formatDuration(model.longestSession.duration_seconds)} in ${model.longestSession.app_name}`
+                  ? `${formatDuration(model.longestSession.duration_seconds)} in ${model.longestSession.app_display_name}`
                   : 'No active stretch captured'}
               </strong>
             </div>
@@ -404,14 +406,27 @@ function App() {
               <BarChart data={model.hourlyBuckets} barGap={8}>
                 <XAxis
                   dataKey="label"
+                  ticks={model.rhythmTickLabels}
                   axisLine={false}
                   tickLine={false}
                   tick={{ fill: '#6d7694', fontSize: 12 }}
                 />
                 <YAxis hide />
                 <Tooltip cursor={{ fill: 'rgba(109, 121, 168, 0.08)' }} content={<UsageTooltip />} />
-                <Bar dataKey="active" stackId="usage" radius={[10, 10, 0, 0]} fill="#5b7cfa" />
-                <Bar dataKey="idle" stackId="usage" radius={[10, 10, 0, 0]} fill={model.idleColor} />
+                <Bar dataKey="magnitude" radius={[10, 10, 0, 0]}>
+                  {model.hourlyBuckets.map((bucket) => (
+                    <Cell
+                      key={bucket.id}
+                      fill={
+                        bucket.tone === 'active'
+                          ? '#5b7cfa'
+                          : bucket.tone === 'idle'
+                            ? model.idleColor
+                            : '#e8edf8'
+                      }
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
