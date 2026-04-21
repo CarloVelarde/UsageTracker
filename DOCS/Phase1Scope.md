@@ -4,5 +4,5 @@
 - tracks idle time
 - stores data locally
 - prints a simple summary
-- does not yet track websites
-- does not yet include a dashboard
+- does not track websites
+- historical milestone only; dashboard work is documented in `DOCS/Phase2Scope.md`

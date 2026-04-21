@@ -14,4 +14,5 @@ npm run dev
 
 - `npm run build` writes the static site to `dashboard/dist/`
 - the Python tracker writes the latest report into `dashboard/dist/report-data.js`
-- opening `dashboard/dist/index.html` shows the newest locally generated summary
+- the app serves the dashboard locally at `http://127.0.0.1:8765/`
+- the dashboard view aggregates all runs from the same day

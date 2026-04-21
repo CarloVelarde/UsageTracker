@@ -323,7 +323,7 @@ export function buildDashboardModel(report) {
   const switchCount = countSwitches(activeSessions)
   const uniqueApps = new Set(activeSessions.map((session) => session.app_display_name)).size
   const timelineBins = createTimelineBins(sessions, runStart, runEnd, appColors)
-  const rhythmBuckets = createRhythmBuckets(sessions, runStart, runEnd)
+  const activityBuckets = createRhythmBuckets(sessions, runStart, runEnd)
 
   return {
     report,
@@ -340,8 +340,8 @@ export function buildDashboardModel(report) {
     dominantApp,
     longestSession,
     appBreakdown,
-    hourlyBuckets: rhythmBuckets,
-    rhythmTickLabels: createBucketTickLabels(rhythmBuckets),
+    activityBuckets,
+    activityTickLabels: createBucketTickLabels(activityBuckets),
     timelineBins,
     timelineTicks: createTicks(runStart, runEnd),
     reflectionLines: buildReflection({

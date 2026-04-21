@@ -3,10 +3,11 @@
 import ctypes
 import json
 import time
-from dashboard import publish_dashboard
 from ctypes import wintypes
 from datetime import datetime
 from pathlib import Path
+
+from dashboard import publish_dashboard
 
 POLL_INTERVAL_SECONDS = 2.0
 IDLE_THRESHOLD_SECONDS = 60.0
@@ -153,7 +154,10 @@ class UsageTracker:
         print(f"Saved session data to: {output_path}")
         dashboard_url = publish_dashboard(payload, output_path)
         if dashboard_url is None:
-            print("Dashboard build not found. Run `npm install` and `npm run build` in `dashboard/` to enable the browser report.")
+            print(
+                "Dashboard build not found. Run `npm install` and "
+                "`npm run build` in `dashboard/` to enable the browser report."
+            )
         else:
             print(f"Opened dashboard at: {dashboard_url}")
 

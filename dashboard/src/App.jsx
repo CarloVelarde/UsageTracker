@@ -403,10 +403,10 @@ function App() {
 
           <div className="chart-wrap">
             <ResponsiveContainer width="100%" height={290}>
-              <BarChart data={model.hourlyBuckets} barGap={8}>
+              <BarChart data={model.activityBuckets} barGap={8}>
                 <XAxis
                   dataKey="label"
-                  ticks={model.rhythmTickLabels}
+                  ticks={model.activityTickLabels}
                   axisLine={false}
                   tickLine={false}
                   tick={{ fill: '#6d7694', fontSize: 12 }}
@@ -414,7 +414,7 @@ function App() {
                 <YAxis hide />
                 <Tooltip cursor={{ fill: 'rgba(109, 121, 168, 0.08)' }} content={<UsageTooltip />} />
                 <Bar dataKey="magnitude" radius={[10, 10, 0, 0]}>
-                  {model.hourlyBuckets.map((bucket) => (
+                  {model.activityBuckets.map((bucket) => (
                     <Cell
                       key={bucket.id}
                       fill={

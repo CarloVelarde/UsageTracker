@@ -6,15 +6,22 @@
 - Foreground app detection is based on the active desktop window, not background processes.
 - Idle detection uses keyboard and mouse inactivity from `GetLastInputInfo`.
 
+## Dashboard decisions
+
+- The dashboard is a local React app served on `127.0.0.1` after tracking stops.
+- Daily summaries aggregate all JSON reports from the same calendar day.
+- App names are normalized for display by removing `.exe` and applying simple title case.
+- Time-based dashboard views use buckets to reduce noise from rapid app switching.
+
 ## Practical limitations
 
-- Browser tabs and websites are not tracked in Phase 1. A browser will appear only as its desktop app, such as `chrome.exe` or `msedge.exe`.
+- Browser tabs and websites are not tracked yet. A browser appears only as its desktop app, such as `chrome.exe` or `msedge.exe`.
 - Some system windows, elevated apps, or unusual window types may return `Unknown` or an empty title if Windows does not expose their process details cleanly.
 - Because the tracker polls every 2 seconds by default, very brief app switches can be missed.
 - Idle time is recorded as its own session type so it does not get added into app totals.
 
 ## Design choices
 
-- The implementation is intentionally small: one entry point plus one tracker module.
-- Data is stored as indented JSON so it is easy to inspect for a class demo.
-- On `Ctrl+C`, the tracker closes the current session first, then writes the JSON file, then prints the summary.
+- The Python side stays intentionally small: one entry point, one tracker module, and one dashboard launcher module.
+- Data is stored as indented JSON so it is easy to inspect for analysis
+- On `Ctrl+C`, the tracker closes the current session, writes the JSON file, prints the summary, and opens the dashboard.
