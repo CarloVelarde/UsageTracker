@@ -13,6 +13,6 @@ npm run dev
 ## Notes
 
 - `npm run build` writes the static site to `dashboard/dist/`
-- the packaged app can bundle the built dashboard assets and serve the latest report data from a separate writable runtime file
-- the app serves the dashboard locally at `http://127.0.0.1:8765/`
-- the dashboard view aggregates all runs from the same day
+- the packaged app bundles the built assets and opens a self-contained dashboard snapshot from disk
+- packaged snapshots are written under `%LOCALAPPDATA%\UsageTracker\state\dashboard-snapshots\`
+- packaged same-day aggregation reads from `%LOCALAPPDATA%\UsageTracker\reports\`

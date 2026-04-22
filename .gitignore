@@ -1,6 +1,9 @@
-﻿venv/
+venv/
 .venv/
 __pycache__/
 *.pyc
+build/
+dist/
+state/
 data/*.json
 !data/.gitkeep

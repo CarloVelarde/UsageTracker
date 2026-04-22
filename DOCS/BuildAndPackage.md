@@ -1,0 +1,45 @@
+# Build And Package
+
+This project now includes a repeatable Windows packaging script for milestone 1.
+
+## Builder Prerequisites
+
+- Windows
+- Python available on `PATH` as `python`
+- Node.js and `npm` available on `PATH`
+
+End users do not need Python or Node. These are only required on the machine that builds the package.
+
+## How To Run It
+
+From the repo root in PowerShell:
+
+```powershell
+.\build_windows.ps1
+```
+
+If you already installed the build dependencies and want a quicker rebuild:
+
+```powershell
+.\build_windows.ps1 -SkipDependencyInstall
+```
+
+## What The Script Does
+
+1. Finds `python` and `npm` on the current machine.
+2. Installs or refreshes PyInstaller for the builder Python environment.
+3. Runs `npm ci` in `dashboard/` so the frontend dependencies match `package-lock.json`.
+4. Runs `npm run build` to create the production React frontend in `dashboard/dist/`.
+5. Runs PyInstaller with `usage_tracker.spec` to create a Windows console package.
+6. Writes the packaged output to `dist/UsageTracker/`.
+
+If any build step fails, the script now stops immediately and surfaces the failing command instead of printing a misleading success message.
+
+## Output
+
+- main executable: `dist/UsageTracker/UsageTracker.exe`
+- shareable milestone-1 deliverable: the full `dist/UsageTracker/` folder
+- packaged runtime reports: `%LOCALAPPDATA%\UsageTracker\reports\`
+- packaged dashboard snapshots: `%LOCALAPPDATA%\UsageTracker\state\dashboard-snapshots\`
+
+The package is intentionally a one-folder build for milestone 1 because it is simpler and more reliable than a single-file build while the packaging flow is still being finalized.

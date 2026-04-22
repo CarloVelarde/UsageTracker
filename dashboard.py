@@ -1,111 +1,76 @@
 from __future__ import annotations
 
 import json
-import socket
-import subprocess
-import sys
-import time
+import re
+import shutil
 import webbrowser
 from datetime import datetime
-from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
 
-from runtime_paths import (
-    BUNDLE_ROOT,
-    DASHBOARD_DIST_DIR,
-    DASHBOARD_ENTRY,
-    DATA_DIR,
-    REPORT_DATA_FILE,
-    is_frozen,
+from runtime_paths import DASHBOARD_DIST_DIR, DASHBOARD_ENTRY, DASHBOARD_SNAPSHOTS_DIR, REPORTS_DIR
+
+
+STYLESHEET_PATTERN = re.compile(
+    r'<link\s+rel="stylesheet"\s+crossorigin\s+href="(?P<href>[^"]+)">',
+)
+MODULE_SCRIPT_PATTERN = re.compile(
+    r'<script\s+type="module"\s+crossorigin\s+src="(?P<src>[^"]+)"></script>',
+)
+REPORT_SCRIPT_PATTERN = re.compile(
+    r'<script\s+src="\./report-data\.js"></script>',
 )
 
-DASHBOARD_HOST = "127.0.0.1"
-DASHBOARD_PORT = 8765
+
+def inline_snapshot_html(script_contents: str) -> str:
+    html = DASHBOARD_ENTRY.read_text(encoding="utf-8")
+
+    def replace_stylesheet(match: re.Match[str]) -> str:
+        href = match.group("href")
+        css_path = DASHBOARD_DIST_DIR / href.lstrip("./")
+        css_contents = css_path.read_text(encoding="utf-8")
+        return f"<style>\n{css_contents}\n</style>"
+
+    def replace_module_script(match: re.Match[str]) -> str:
+        src = match.group("src")
+        js_path = DASHBOARD_DIST_DIR / src.lstrip("./")
+        js_contents = js_path.read_text(encoding="utf-8")
+        return (
+            f"<script>\n{script_contents}</script>\n"
+            f'<script type="module">\n{js_contents}\n</script>'
+        )
+
+    html = STYLESHEET_PATTERN.sub(replace_stylesheet, html)
+    html = MODULE_SCRIPT_PATTERN.sub(replace_module_script, html)
+    html = REPORT_SCRIPT_PATTERN.sub("", html)
+    return html
 
 
-class DashboardRequestHandler(SimpleHTTPRequestHandler):
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, directory=str(DASHBOARD_DIST_DIR), **kwargs)
-
-    def do_GET(self) -> None:
-        request_path = urlsplit(self.path).path
-        if request_path == "/report-data.js":
-            self.serve_report_data()
-            return
-
-        super().do_GET()
-
-    def log_message(self, format: str, *args: Any) -> None:
-        return
-
-    def serve_report_data(self) -> None:
-        if REPORT_DATA_FILE.exists():
-            payload = REPORT_DATA_FILE.read_text(encoding="utf-8")
-        else:
-            payload = "window.__USAGE_REPORT__ = null;\n"
-
-        encoded_payload = payload.encode("utf-8")
-        self.send_response(200)
-        self.send_header("Content-Type", "application/javascript; charset=utf-8")
-        self.send_header("Content-Length", str(len(encoded_payload)))
-        self.end_headers()
-        self.wfile.write(encoded_payload)
-
-
-def is_dashboard_server_running() -> bool:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.settimeout(0.2)
-        return sock.connect_ex((DASHBOARD_HOST, DASHBOARD_PORT)) == 0
-
-
-def serve_dashboard_forever() -> None:
-    server = ThreadingHTTPServer((DASHBOARD_HOST, DASHBOARD_PORT), DashboardRequestHandler)
-    server.daemon_threads = True
-    try:
-        server.serve_forever()
-    finally:
-        server.server_close()
-
-
-def start_dashboard_server() -> bool:
+def create_dashboard_snapshot(
+    snapshot_name: str,
+    script_contents: str,
+    report_payload: dict[str, Any],
+) -> Path | None:
     if not DASHBOARD_ENTRY.exists():
-        return False
+        return None
 
-    if is_dashboard_server_running():
-        return True
+    snapshot_dir = DASHBOARD_SNAPSHOTS_DIR / snapshot_name
+    if snapshot_dir.exists():
+        shutil.rmtree(snapshot_dir)
 
-    creationflags = 0
-    if sys.platform == "win32":
-        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
-
-    if is_frozen():
-        command = [sys.executable, "--serve-dashboard"]
-    else:
-        command = [sys.executable, str(BUNDLE_ROOT / "main.py"), "--serve-dashboard"]
-
-    subprocess.Popen(
-        command,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        stdin=subprocess.DEVNULL,
-        creationflags=creationflags,
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
+    snapshot_html = inline_snapshot_html(script_contents)
+    (snapshot_dir / "index.html").write_text(snapshot_html, encoding="utf-8")
+    (snapshot_dir / "report.json").write_text(
+        json.dumps(report_payload, indent=2) + "\n",
+        encoding="utf-8",
     )
 
-    for _ in range(30):
-        if is_dashboard_server_running():
-            return True
-        time.sleep(0.1)
+    favicon_path = DASHBOARD_DIST_DIR / "favicon.svg"
+    if favicon_path.exists():
+        shutil.copy2(favicon_path, snapshot_dir / "favicon.svg")
 
-    return False
-
-
-def get_dashboard_url() -> str | None:
-    if start_dashboard_server():
-        return f"http://{DASHBOARD_HOST}:{DASHBOARD_PORT}/"
-
-    return None
+    return snapshot_dir / "index.html"
 
 
 def get_report_day(report_payload: dict[str, Any]) -> str | None:
@@ -126,21 +91,33 @@ def load_report(path: Path) -> dict[str, Any] | None:
         return None
 
 
-def aggregate_same_day_reports(report_payload: dict[str, Any]) -> dict[str, Any]:
+def aggregate_same_day_reports(
+    report_payload: dict[str, Any],
+    source_path: Path | None = None,
+) -> dict[str, Any]:
     report_day = get_report_day(report_payload)
     if report_day is None:
         return report_payload
 
     matching_reports: list[dict[str, Any]] = []
-    for path in sorted(DATA_DIR.glob("usage_*.json")):
+    source_path_resolved = source_path.resolve(strict=False) if source_path is not None else None
+    seen_paths: set[Path] = set()
+    for path in sorted(REPORTS_DIR.glob("usage_*.json")):
+        resolved_path = path.resolve(strict=False)
+        if resolved_path in seen_paths:
+            continue
+        seen_paths.add(resolved_path)
+
+        if source_path_resolved is not None and path.resolve(strict=False) == source_path_resolved:
+            continue
+
         loaded = load_report(path)
         if loaded is None:
             continue
         if get_report_day(loaded) == report_day:
             matching_reports.append(loaded)
 
-    if not matching_reports:
-        return report_payload
+    matching_reports.append(report_payload)
 
     matching_reports.sort(key=lambda payload: payload.get("run_started_at", ""))
     combined_sessions: list[dict[str, Any]] = []
@@ -164,11 +141,11 @@ def aggregate_same_day_reports(report_payload: dict[str, Any]) -> dict[str, Any]
 
 
 def publish_dashboard(report_payload: dict[str, Any], source_path: Path) -> str | None:
-    """Write the latest report into runtime state and open the bundled dashboard locally."""
+    """Write a local dashboard snapshot and open it without leaving a background server running."""
     if not DASHBOARD_ENTRY.exists():
         return None
 
-    aggregated_payload = aggregate_same_day_reports(report_payload)
+    aggregated_payload = aggregate_same_day_reports(report_payload, source_path)
     dashboard_payload = {
         **aggregated_payload,
         "source_file_name": source_path.name,
@@ -178,10 +155,14 @@ def publish_dashboard(report_payload: dict[str, Any], source_path: Path) -> str 
         "window.__USAGE_REPORT__ = "
         f"{json.dumps(dashboard_payload, indent=2)};\n"
     )
-    REPORT_DATA_FILE.write_text(script_contents, encoding="utf-8")
-    dashboard_url = get_dashboard_url()
-    if dashboard_url is None:
+    snapshot_entry = create_dashboard_snapshot(
+        source_path.stem,
+        script_contents,
+        dashboard_payload,
+    )
+    if snapshot_entry is None:
         return None
 
+    dashboard_url = snapshot_entry.resolve().as_uri()
     webbrowser.open(dashboard_url)
     return dashboard_url

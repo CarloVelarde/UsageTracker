@@ -2,6 +2,7 @@
 
 import ctypes
 import json
+import os
 import sys
 import time
 from ctypes import wintypes
@@ -10,7 +11,7 @@ from pathlib import Path
 from threading import Lock
 
 from dashboard import publish_dashboard
-from runtime_paths import DATA_DIR
+from runtime_paths import REPORTS_DIR
 
 POLL_INTERVAL_SECONDS = 2.0
 IDLE_THRESHOLD_SECONDS = 60.0
@@ -73,7 +74,7 @@ class UsageTracker:
         self._did_shutdown = False
         self._shutdown_lock = Lock()
         self._console_handler: ConsoleCtrlHandler | None = None
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
     def run(self) -> None:
         self.register_console_handler()
@@ -202,7 +203,7 @@ class UsageTracker:
                 print(f"Opened dashboard at: {dashboard_url}")
 
     def save_sessions(self, run_ended_at: datetime) -> tuple[dict, Path]:
-        output_path = DATA_DIR / f"usage_{self.run_started_at.strftime('%Y%m%d_%H%M%S')}.json"
+        output_path = REPORTS_DIR / f"usage_{self.run_started_at.strftime('%Y%m%d_%H%M%S')}.json"
         payload = {
             "run_started_at": self.run_started_at.isoformat(timespec="seconds"),
             "run_ended_at": run_ended_at.isoformat(timespec="seconds"),
@@ -210,7 +211,17 @@ class UsageTracker:
             "idle_threshold_seconds": self.idle_threshold_seconds,
             "sessions": self.sessions,
         }
-        output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        temp_path = output_path.with_suffix(".json.tmp")
+        with temp_path.open("w", encoding="utf-8", newline="\n") as handle:
+            json.dump(payload, handle, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+
+        temp_path.replace(output_path)
+        if not output_path.exists():
+            raise RuntimeError(f"Expected saved report at {output_path}, but it was not found.")
         return payload, output_path
 
     def print_summary(self) -> None:

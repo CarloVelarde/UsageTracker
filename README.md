@@ -1,48 +1,76 @@
 ﻿# Windows App Usage Tracker
 
-Windows only local usage tracker with a browser dashboard. It records foreground apps, idle time, saves local JSON reports, and opens a same day dashboard when tracking stops.
+Windows only local usage tracker with a browser dashboard. It records foreground apps and idle time, saves local JSON reports, and opens a same-day dashboard when tracking stops.
 
-## Run
+## Prerequisites
+
+- Python on `PATH`
+- Node.js and `npm` on `PATH`
+
+You only need Node.js for development and packaging. End users running the packaged executable do not need Python or Node.
+
+## Run In Development
+
+Use this when you are changing Python code or frontend code.
 
 ```powershell
-py -3 -m venv .venv
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 cd dashboard
 npm install
 npm run build
 cd ..
-py -3 main.py
+python main.py
 ```
 
-Press `Ctrl+C` to stop tracking.
+- Keep the console window open while tracking.
+- Press `Ctrl+C` to stop.
+- On stop, the app saves the report, prints a summary, and opens the dashboard.
+- Development reports are saved in `data/`.
 
-## Output
+## Run The Packaged Executable
 
-- JSON files are saved in `data/` during source-mode development
-- packaged builds are intended to save runtime files under `%LOCALAPPDATA%\UsageTracker\`
-- Summary prints total time per app, total idle time, and the top 3 apps
-- The dashboard opens at `http://127.0.0.1:8765/`
-- The dashboard aggregates all runs from the same day
+Use this when you just want to track locally without setting up Python or Node.
 
-## Milestone 1 UX
+```powershell
+dist\UsageTracker\UsageTracker.exe
+```
 
-- users run the executable to start tracking
-- the console window stays open while tracking is active
-- `Ctrl+C` is the official stop action
-- on Windows, closing the console window also attempts a graceful shutdown so the report can still be saved and the dashboard opened
-- stopping the tracker saves the session data, prints a summary, and opens the dashboard
+- The console window stays open while tracking is active.
+- Press `Ctrl+C` to stop.
+- On Windows, closing the console window also attempts a graceful shutdown.
+- Packaged runtime files are saved under `%LOCALAPPDATA%\UsageTracker\`.
+- Packaged JSON reports are saved under `%LOCALAPPDATA%\UsageTracker\reports\`.
+- Each packaged dashboard snapshot also keeps its own `report.json` copy under `%LOCALAPPDATA%\UsageTracker\state\dashboard-snapshots\`.
+- Packaged same-day aggregation reads from `reports/` only. The old `data/` folder is no longer used by the executable.
+- When tracking stops, the app opens a local dashboard snapshot in your browser and then exits. It does not keep a background `UsageTracker.exe` running.
 
-## Packaging Notes
+## Rebuild The Executable
 
-- runtime path handling is now packaging-safe for report data and dashboard state
-- the built dashboard assets can be bundled separately from writable runtime files
-- the latest dashboard payload is served from a runtime state file instead of rewriting bundled frontend assets
-- milestone 1 still keeps the console-driven tracker flow
+Use this after changing Python code, frontend code, or packaging files.
 
-See [DOCS/PackagingNotes.md](/C:/Users/Carlo/Documents/Playground/DOCS/PackagingNotes.md) for the current packaging-focused implementation notes.
+```powershell
+.\build_windows.ps1
+```
 
-## Dependencies
+Faster rebuild if your build dependencies are already installed:
 
-- Python tracker uses only the standard library and Windows APIs through `ctypes`
-- Dashboard frontend uses React, Vite, Recharts, and Motion
+```powershell
+.\build_windows.ps1 -SkipDependencyInstall
+```
+
+This script:
+
+- installs or refreshes PyInstaller for the builder Python environment
+- builds the React dashboard into `dashboard/dist/`
+- packages the app into `dist/UsageTracker/`
+
+The milestone-1 deliverable is the full `dist/UsageTracker/` folder.
+
+## Notes
+
+- The dashboard aggregates all runs from the same day.
+- The dashboard always includes the run that just ended, even before older same-day files are aggregated in.
+- The dashboard opens from a local snapshot on disk after tracking stops, so stopping tracking also ends the `UsageTracker.exe` process.
+- For packaging details, see [DOCS/BuildAndPackage.md](/C:/Users/Carlo/Documents/Playground/DOCS/BuildAndPackage.md).

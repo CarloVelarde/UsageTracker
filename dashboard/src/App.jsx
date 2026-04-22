@@ -29,10 +29,13 @@ import {
   YAxis,
 } from 'recharts'
 import { buildDashboardModel, formatClock, formatDuration, formatLongDate } from './dashboardData'
-import { mockReport } from './mockReport'
 
 const reportFromWindow = window.__USAGE_REPORT__
-const report = reportFromWindow?.sessions?.length ? reportFromWindow : mockReport
+const report = reportFromWindow ?? {
+  run_started_at: new Date().toISOString(),
+  run_ended_at: new Date().toISOString(),
+  sessions: [],
+}
 const model = buildDashboardModel(report)
 const MotionArticle = motion.article
 const MotionHeader = motion.header
@@ -451,9 +454,13 @@ function App() {
           </div>
 
           <div className="reflection-card">
-            {model.reflectionLines.map((line) => (
-              <p key={line}>{line}</p>
-            ))}
+            {model.sessionCount > 0 ? (
+              model.reflectionLines.map((line) => (
+                <p key={line}>{line}</p>
+              ))
+            ) : (
+              <p>No report data was loaded into this dashboard snapshot.</p>
+            )}
           </div>
 
           <div className="insight-grid">
@@ -463,7 +470,7 @@ function App() {
             </div>
             <div className="insight">
               <span>Source file</span>
-              <strong>{report.source_file_name ?? 'Live demo data'}</strong>
+              <strong>{report.source_file_name ?? 'No saved report file detected'}</strong>
             </div>
             <div className="insight">
               <span>Tracked mode</span>
