@@ -10,10 +10,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-ROOT_DIR = Path(__file__).resolve().parent
+from runtime_paths import DATA_DIR, get_source_root
+
+ROOT_DIR = get_source_root()
 FRONTEND_DIR = ROOT_DIR / "dashboard"
 DIST_DIR = FRONTEND_DIR / "dist"
-DATA_DIR = ROOT_DIR / "data"
 DASHBOARD_ENTRY = DIST_DIR / "index.html"
 REPORT_DATA_SCRIPT = DIST_DIR / "report-data.js"
 DASHBOARD_HOST = "127.0.0.1"

@@ -8,13 +8,11 @@ from datetime import datetime
 from pathlib import Path
 
 from dashboard import publish_dashboard
+from runtime_paths import DATA_DIR
 
 POLL_INTERVAL_SECONDS = 2.0
 IDLE_THRESHOLD_SECONDS = 60.0
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-
-DATA_DIR = Path(__file__).resolve().parent / "data"
-
 
 class LASTINPUTINFO(ctypes.Structure):
     _fields_ = [
