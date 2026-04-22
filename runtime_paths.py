@@ -38,6 +38,15 @@ def get_app_root() -> Path:
 
 BUNDLE_ROOT = get_bundle_root()
 APP_ROOT = get_app_root()
+STATE_DIR = APP_ROOT / "state"
 DATA_DIR = APP_ROOT / "data"
+DASHBOARD_DIST_DIR = (
+    BUNDLE_ROOT / "dashboard_dist"
+    if is_frozen()
+    else get_source_root() / "dashboard" / "dist"
+)
+DASHBOARD_ENTRY = DASHBOARD_DIST_DIR / "index.html"
+REPORT_DATA_FILE = STATE_DIR / "report-data.js"
 
-DATA_DIR.mkdir(parents=True, exist_ok=True)
+for path in (STATE_DIR, DATA_DIR):
+    path.mkdir(parents=True, exist_ok=True)

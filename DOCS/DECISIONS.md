@@ -12,6 +12,7 @@
 - Daily summaries aggregate all JSON reports from the same calendar day.
 - App names are normalized for display by removing `.exe` and applying simple title case.
 - Time-based dashboard views use buckets to reduce noise from rapid app switching.
+- The built dashboard assets are treated as static bundle content, while the latest report payload is served from a writable runtime state file.
 
 ## Practical limitations
 
@@ -25,3 +26,4 @@
 - The Python side stays intentionally small: one entry point, one tracker module, and one dashboard launcher module.
 - Data is stored as indented JSON so it is easy to inspect for analysis
 - On `Ctrl+C`, the tracker closes the current session, writes the JSON file, prints the summary, and opens the dashboard.
+- Source-mode development keeps using repo-local paths, while packaged mode is designed to use `%LOCALAPPDATA%\UsageTracker\` for writable runtime data.
