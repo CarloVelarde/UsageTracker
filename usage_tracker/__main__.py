@@ -1,4 +1,4 @@
-from tracker import UsageTracker
+from usage_tracker.tracker import UsageTracker
 
 
 def main() -> None:

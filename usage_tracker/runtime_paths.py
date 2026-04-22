@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "UsageTracker"
+PACKAGE_ROOT = Path(__file__).resolve().parent
 
 
 def is_frozen() -> bool:
@@ -12,7 +13,7 @@ def is_frozen() -> bool:
 
 
 def get_source_root() -> Path:
-    return Path(__file__).resolve().parent
+    return PACKAGE_ROOT.parent
 
 
 def get_bundle_root() -> Path:

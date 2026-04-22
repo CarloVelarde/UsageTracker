@@ -10,8 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from threading import Lock
 
-from dashboard import publish_dashboard
-from runtime_paths import REPORTS_DIR
+from .dashboard import publish_dashboard
+from .runtime_paths import REPORTS_DIR
 
 POLL_INTERVAL_SECONDS = 2.0
 IDLE_THRESHOLD_SECONDS = 60.0

@@ -60,15 +60,15 @@ The packaged app is still running and locking dist\UsageTracker\UsageTracker.exe
 
 Running process id(s): $processList
 
-This usually happens because the packaged dashboard server is still open in the background after a previous run.
+This usually happens because a previous packaged run is still open and locking the executable.
 
 Close the running UsageTracker process first, or rerun the build with:
 
-.\build_windows.ps1 -StopRunningApp
+.\scripts\build_windows.ps1 -StopRunningApp
 "@
 }
 
-$repoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $pythonExe = Require-Command -Name "python"
 $npmExe = Require-Command -Name "npm"
 
@@ -104,7 +104,7 @@ try {
   }
 
   Write-Host "Building PyInstaller package..."
-  Invoke-NativeCommand $pythonExe -m PyInstaller ".\usage_tracker.spec" --noconfirm --clean
+  Invoke-NativeCommand $pythonExe -m PyInstaller ".\packaging\usage_tracker.spec" --noconfirm --clean
 
   Write-Host ""
   Write-Host "Build complete."

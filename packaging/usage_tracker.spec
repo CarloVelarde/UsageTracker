@@ -3,12 +3,13 @@
 from pathlib import Path
 
 
-project_root = Path(SPECPATH)
+project_root = Path(SPECPATH).parent
+entry_script = project_root / "usage_tracker" / "__main__.py"
 dashboard_dist = project_root / "dashboard" / "dist"
 
 
 a = Analysis(
-    ["main.py"],
+    [str(entry_script)],
     pathex=[str(project_root)],
     binaries=[],
     datas=[(str(dashboard_dist), "dashboard_dist")],

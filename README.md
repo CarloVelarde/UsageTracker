@@ -2,6 +2,16 @@
 
 Windows only local usage tracker with a browser dashboard. It records foreground apps and idle time, saves local JSON reports, and opens a same-day dashboard when tracking stops.
 
+## Repo Layout
+
+- `usage_tracker/`: Python application package and entrypoint
+- `dashboard/`: React frontend
+- `data/`: development-mode report output
+- `scripts/`: local build scripts
+- `packaging/`: PyInstaller spec
+- `DOCS/`: short project docs
+- generated output is kept out of the repo: `dashboard/dist/`, `build/`, and `dist/`
+
 ## Prerequisites
 
 - Python on `PATH`
@@ -21,7 +31,7 @@ cd dashboard
 npm install
 npm run build
 cd ..
-python main.py
+python -m usage_tracker
 ```
 
 - Keep the console window open while tracking.
@@ -51,20 +61,20 @@ dist\UsageTracker\UsageTracker.exe
 Use this after changing Python code, frontend code, or packaging files.
 
 ```powershell
-.\build_windows.ps1
+.\scripts\build_windows.ps1
 ```
 
 Faster rebuild if your build dependencies are already installed:
 
 ```powershell
-.\build_windows.ps1 -SkipDependencyInstall
+.\scripts\build_windows.ps1 -SkipDependencyInstall
 ```
 
 This script:
 
 - installs or refreshes PyInstaller for the builder Python environment
 - builds the React dashboard into `dashboard/dist/`
-- packages the app into `dist/UsageTracker/`
+- packages the app from `packaging/usage_tracker.spec` into `dist/UsageTracker/`
 
 The milestone-1 deliverable is the full `dist/UsageTracker/` folder.
 

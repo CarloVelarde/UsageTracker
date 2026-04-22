@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from runtime_paths import DASHBOARD_DIST_DIR, DASHBOARD_ENTRY, DASHBOARD_SNAPSHOTS_DIR, REPORTS_DIR
+from .runtime_paths import DASHBOARD_DIST_DIR, DASHBOARD_ENTRY, DASHBOARD_SNAPSHOTS_DIR, REPORTS_DIR
 
 
 STYLESHEET_PATTERN = re.compile(
