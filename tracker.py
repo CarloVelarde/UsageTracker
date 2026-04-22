@@ -2,10 +2,12 @@
 
 import ctypes
 import json
+import sys
 import time
 from ctypes import wintypes
 from datetime import datetime
 from pathlib import Path
+from threading import Lock
 
 from dashboard import publish_dashboard
 from runtime_paths import DATA_DIR
@@ -13,6 +15,13 @@ from runtime_paths import DATA_DIR
 POLL_INTERVAL_SECONDS = 2.0
 IDLE_THRESHOLD_SECONDS = 60.0
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+CTRL_C_EVENT = 0
+CTRL_BREAK_EVENT = 1
+CTRL_CLOSE_EVENT = 2
+CTRL_LOGOFF_EVENT = 5
+CTRL_SHUTDOWN_EVENT = 6
+
+ConsoleCtrlHandler = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.DWORD)
 
 class LASTINPUTINFO(ctypes.Structure):
     _fields_ = [
@@ -46,6 +55,8 @@ kernel32.QueryFullProcessImageNameW.argtypes = [
 kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
 kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
 kernel32.CloseHandle.restype = wintypes.BOOL
+kernel32.SetConsoleCtrlHandler.argtypes = [ConsoleCtrlHandler, wintypes.BOOL]
+kernel32.SetConsoleCtrlHandler.restype = wintypes.BOOL
 
 
 class UsageTracker:
@@ -60,10 +71,15 @@ class UsageTracker:
         self.current_session: dict | None = None
         self.sessions: list[dict] = []
         self._did_shutdown = False
+        self._shutdown_lock = Lock()
+        self._console_handler: ConsoleCtrlHandler | None = None
         DATA_DIR.mkdir(parents=True, exist_ok=True)
 
     def run(self) -> None:
-        print("Tracking started. Press Ctrl+C to stop.")
+        self.register_console_handler()
+        print("Tracking started.")
+        print("Keep this window open while tracking.")
+        print("Press Ctrl+C to stop and open today's dashboard.")
         print(
             f"Polling every {self.poll_interval_seconds:.0f}s. "
             f"Idle after {self.idle_threshold_seconds:.0f}s without input."
@@ -76,7 +92,32 @@ class UsageTracker:
         except KeyboardInterrupt:
             print("\nStopping tracker...")
         finally:
+            self.unregister_console_handler()
             self.shutdown()
+
+    def register_console_handler(self) -> None:
+        if sys.platform != "win32":
+            return
+
+        handler = ConsoleCtrlHandler(self.handle_console_event)
+        if kernel32.SetConsoleCtrlHandler(handler, True):
+            self._console_handler = handler
+
+    def unregister_console_handler(self) -> None:
+        if self._console_handler is None:
+            return
+
+        kernel32.SetConsoleCtrlHandler(self._console_handler, False)
+        self._console_handler = None
+
+    def handle_console_event(self, event_code: int) -> bool:
+        if event_code in (CTRL_C_EVENT, CTRL_BREAK_EVENT):
+            return False
+
+        if event_code in (CTRL_CLOSE_EVENT, CTRL_LOGOFF_EVENT, CTRL_SHUTDOWN_EVENT):
+            self.shutdown()
+
+        return False
 
     def poll_once(self) -> None:
         now = datetime.now()
@@ -141,23 +182,24 @@ class UsageTracker:
         self.current_session = None
 
     def shutdown(self) -> None:
-        if self._did_shutdown:
-            return
+        with self._shutdown_lock:
+            if self._did_shutdown:
+                return
 
-        self._did_shutdown = True
-        run_ended_at = datetime.now()
-        self.finish_current_session(run_ended_at)
-        payload, output_path = self.save_sessions(run_ended_at)
-        self.print_summary()
-        print(f"Saved session data to: {output_path}")
-        dashboard_url = publish_dashboard(payload, output_path)
-        if dashboard_url is None:
-            print(
-                "Dashboard build not found. Run `npm install` and "
-                "`npm run build` in `dashboard/` to enable the browser report."
-            )
-        else:
-            print(f"Opened dashboard at: {dashboard_url}")
+            self._did_shutdown = True
+            run_ended_at = datetime.now()
+            self.finish_current_session(run_ended_at)
+            payload, output_path = self.save_sessions(run_ended_at)
+            self.print_summary()
+            print(f"Saved session data to: {output_path}")
+            dashboard_url = publish_dashboard(payload, output_path)
+            if dashboard_url is None:
+                print(
+                    "Dashboard build not found. Run `npm install` and "
+                    "`npm run build` in `dashboard/` to enable the browser report."
+                )
+            else:
+                print(f"Opened dashboard at: {dashboard_url}")
 
     def save_sessions(self, run_ended_at: datetime) -> tuple[dict, Path]:
         output_path = DATA_DIR / f"usage_{self.run_started_at.strftime('%Y%m%d_%H%M%S')}.json"

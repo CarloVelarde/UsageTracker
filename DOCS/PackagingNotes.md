@@ -6,7 +6,7 @@ This document tracks the packaging-oriented runtime changes for the Windows usag
 
 - Step 1 is implemented: writable runtime data paths are packaging-safe.
 - Step 2 is implemented: dashboard asset loading is packaging-safe.
-- Milestone 1 behavior is still the same console-driven tracker flow.
+- Step 3 is implemented: milestone-1 console UX is preserved.
 
 ## Runtime Paths
 
@@ -33,3 +33,10 @@ This document tracks the packaging-oriented runtime changes for the Windows usag
 - Add the PyInstaller build setup.
 - Bundle the built dashboard assets into the packaged application.
 - Verify the packaged console workflow end to end on a clean Windows machine.
+
+## Milestone 1 UX
+
+- The first packaged version remains a console application.
+- Launching the executable starts tracking and keeps the console visible.
+- `Ctrl+C` remains the primary stop action.
+- On Windows, console close events also trigger the shutdown path so the session can still be finalized.

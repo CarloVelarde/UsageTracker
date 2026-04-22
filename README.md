@@ -25,6 +25,14 @@ Press `Ctrl+C` to stop tracking.
 - The dashboard opens at `http://127.0.0.1:8765/`
 - The dashboard aggregates all runs from the same day
 
+## Milestone 1 UX
+
+- users run the executable to start tracking
+- the console window stays open while tracking is active
+- `Ctrl+C` is the official stop action
+- on Windows, closing the console window also attempts a graceful shutdown so the report can still be saved and the dashboard opened
+- stopping the tracker saves the session data, prints a summary, and opens the dashboard
+
 ## Packaging Notes
 
 - runtime path handling is now packaging-safe for report data and dashboard state
