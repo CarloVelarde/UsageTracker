@@ -1,15 +1,16 @@
 const APP_COLORS = [
-  '#5b7cfa',
-  '#f58b54',
-  '#5ec5a7',
-  '#b284f9',
-  '#ef6f9a',
-  '#f2c86c',
-  '#6da5ff',
-  '#8bc7ff',
+  '#86bea0',
+  '#7cb7df',
+  '#f2a36f',
+  '#a895d2',
+  '#ee9aa4',
+  '#e7c76b',
+  '#83c7be',
+  '#c8d5df',
 ]
 
-const IDLE_COLOR = '#cfd7ea'
+const IDLE_COLOR = '#f3bf98'
+const EMPTY_COLOR = '#dedbd2'
 
 function toDate(value) {
   return value instanceof Date ? value : new Date(value)
@@ -67,6 +68,10 @@ export function formatLongDate(dateLike) {
     day: 'numeric',
     year: 'numeric',
   })
+}
+
+export function formatPercent(value) {
+  return `${Math.round((value ?? 0) * 100)}%`
 }
 
 function createTicks(runStart, runEnd, tickCount = 5) {
@@ -127,7 +132,7 @@ function createTimeBuckets(sessions, runStart, runEnd, minBuckets, maxBuckets, t
       }
     })
 
-    let dominantApp = 'No Tracking'
+    let dominantApp = 'No Data'
     let dominantSeconds = 0
     for (const [appName, seconds] of appUsage.entries()) {
       if (seconds > dominantSeconds) {
@@ -147,14 +152,14 @@ function createTimeBuckets(sessions, runStart, runEnd, minBuckets, maxBuckets, t
       dominantApp,
       dominantSeconds,
       isIdle: dominantApp === 'Idle',
-      isEmpty: dominantApp === 'No Tracking',
+      isEmpty: dominantApp === 'No Data',
     }
   })
 }
 
 function createTimelineBins(sessions, runStart, runEnd, appColors) {
-  return createTimeBuckets(sessions, runStart, runEnd, 32, 72, 12).map((bucket) => {
-    let color = '#e4ebf7'
+  return createTimeBuckets(sessions, runStart, runEnd, 36, 84, 10).map((bucket) => {
+    let color = EMPTY_COLOR
     if (bucket.isIdle) {
       color = IDLE_COLOR
     } else if (!bucket.isEmpty) {
@@ -170,7 +175,7 @@ function createTimelineBins(sessions, runStart, runEnd, appColors) {
 }
 
 function createRhythmBuckets(sessions, runStart, runEnd) {
-  return createTimeBuckets(sessions, runStart, runEnd, 20, 48, 20).map((bucket) => ({
+  return createTimeBuckets(sessions, runStart, runEnd, 24, 56, 18).map((bucket) => ({
     ...bucket,
     magnitude: bucket.active > 0 ? bucket.active : bucket.idle,
     tone: bucket.active > 0 ? 'active' : bucket.idle > 0 ? 'idle' : 'empty',
@@ -207,28 +212,9 @@ function summarizeApps(activeSessions) {
     appTotals.set(key, existing)
   })
 
-  const sortedApps = [...appTotals.values()].sort((left, right) => {
+  return [...appTotals.values()].sort((left, right) => {
     return right.seconds - left.seconds
   })
-
-  if (sortedApps.length === 0) {
-    return {
-      displayApps: [],
-      allApps: [],
-    }
-  }
-
-  if (sortedApps.length <= 5) {
-    return {
-      displayApps: sortedApps.slice(0, 5),
-      allApps: sortedApps,
-    }
-  }
-
-  return {
-    displayApps: sortedApps.slice(0, 5),
-    allApps: sortedApps,
-  }
 }
 
 function countSwitches(activeSessions) {
@@ -249,35 +235,78 @@ function countSwitches(activeSessions) {
   return switches
 }
 
+function createTimelineLegend({ appBreakdown, idleSeconds, timelineBins }) {
+  const items = appBreakdown.slice(0, 7).map((app) => ({
+    name: app.name,
+    color: app.color,
+    seconds: app.seconds,
+  }))
+
+  if (idleSeconds > 0) {
+    items.push({
+      name: 'Idle',
+      color: IDLE_COLOR,
+      seconds: idleSeconds,
+    })
+  }
+
+  if (timelineBins.some((bin) => bin.isEmpty)) {
+    items.push({
+      name: 'No data',
+      color: EMPTY_COLOR,
+      seconds: 0,
+    })
+  }
+
+  return items
+}
+
 function buildReflection({
   dominantApp,
   activeSeconds,
   idleSeconds,
+  trackedSeconds,
   switchCount,
   uniqueApps,
   longestSession,
 }) {
-  if (!dominantApp) {
+  if (trackedSeconds <= 0) {
     return [
-      'No active app sessions were captured in this report.',
-      'Keep the dashboard open as you refine the tracker and richer daily patterns will appear here.',
+      'No report activity was captured yet.',
+      'Once a tracking session finishes, the day will appear here as a quiet summary.',
     ]
   }
 
-  const activeShare = activeSeconds > 0 ? dominantApp.seconds / activeSeconds : 0
-  const lines = [
-    `${dominantApp.name} anchored ${Math.round(activeShare * 100)}% of your active time today.`,
-    `You moved across ${uniqueApps} apps with ${switchCount} context switches, keeping the day fairly ${switchCount > 10 ? 'dynamic' : 'steady'}.`,
-  ]
-
-  if (longestSession) {
-    lines.push(
-      `Your longest uninterrupted stretch lasted ${formatDuration(longestSession.duration_seconds)} in ${longestSession.app_display_name}.`,
-    )
+  if (trackedSeconds < 60) {
+    return [
+      'Only a small amount of activity was captured in this report.',
+      'The layout will become more expressive after a longer tracking session.',
+    ]
   }
 
+  if (!dominantApp || activeSeconds <= 0) {
+    return [
+      'This report is mostly pause time.',
+      'The tracker captured the shape of the day without adding any judgment.',
+    ]
+  }
+
+  const lines = []
+  const longestMinutes = (longestSession?.duration_seconds ?? 0) / 60
+  if (longestMinutes >= 45) {
+    lines.push('A steady day with long focused stretches.')
+  } else if (switchCount > uniqueApps * 2 && switchCount > 6) {
+    lines.push('A varied day with several app transitions.')
+  } else {
+    lines.push('A calm snapshot of where your screen time settled.')
+  }
+
+  lines.push(`${dominantApp.name} anchored ${formatPercent(dominantApp.share)} of active time.`)
+
   if (idleSeconds > activeSeconds * 0.35) {
-    lines.push('There was a meaningful amount of pause time, so this reads more like a full-day rhythm than nonstop screen work.')
+    lines.push('There were meaningful pauses in the flow, keeping the day from reading as nonstop screen work.')
+  } else {
+    lines.push('You kept a fairly continuous rhythm across the captured sessions.')
   }
 
   return lines
@@ -307,23 +336,25 @@ export function buildDashboardModel(report) {
   const idleSeconds = idleSessions.reduce((sum, session) => {
     return sum + (session.duration_seconds ?? 0)
   }, 0)
-  const { displayApps, allApps } = summarizeApps(activeSessions)
-  const appColors = new Map(
-    allApps.map((app, index) => [app.name, APP_COLORS[index % APP_COLORS.length]]),
-  )
-  const appBreakdown = displayApps.map((app, index) => ({
+  const allApps = summarizeApps(activeSessions)
+  const allAppBreakdown = allApps.map((app, index) => ({
     ...app,
     color: APP_COLORS[index % APP_COLORS.length],
     share: activeSeconds > 0 ? app.seconds / activeSeconds : 0,
   }))
+  const appBreakdown = allAppBreakdown.slice(0, 7)
+  const appColors = new Map(
+    allAppBreakdown.map((app) => [app.name, app.color]),
+  )
   const dominantApp = appBreakdown[0] ?? null
   const longestSession = [...activeSessions].sort((left, right) => {
     return (right.duration_seconds ?? 0) - (left.duration_seconds ?? 0)
-  })[0]
+  })[0] ?? null
   const switchCount = countSwitches(activeSessions)
   const uniqueApps = new Set(activeSessions.map((session) => session.app_display_name)).size
   const timelineBins = createTimelineBins(sessions, runStart, runEnd, appColors)
   const activityBuckets = createRhythmBuckets(sessions, runStart, runEnd)
+  const topAppCount = Math.min(appBreakdown.length, allAppBreakdown.length)
 
   return {
     report,
@@ -332,6 +363,7 @@ export function buildDashboardModel(report) {
     trackedSeconds,
     activeSeconds,
     idleSeconds,
+    idleShare: trackedSeconds > 0 ? idleSeconds / trackedSeconds : 0,
     activeShare: trackedSeconds > 0 ? activeSeconds / trackedSeconds : 0,
     sessionCount: sessions.length,
     breakCount: idleSessions.length,
@@ -339,19 +371,38 @@ export function buildDashboardModel(report) {
     uniqueApps,
     dominantApp,
     longestSession,
+    longestSessionTimeRange: longestSession
+      ? `${formatClock(longestSession.start_timestamp)} - ${formatClock(longestSession.end_timestamp)}`
+      : 'No active stretch captured',
     appBreakdown,
+    allAppBreakdown,
+    topAppCountLabel:
+      topAppCount > 0
+        ? `Top ${topAppCount} of ${allAppBreakdown.length} apps`
+        : 'No apps captured',
     activityBuckets,
     activityTickLabels: createBucketTickLabels(activityBuckets),
     timelineBins,
     timelineTicks: createTicks(runStart, runEnd),
+    timelineLegendItems: createTimelineLegend({
+      appBreakdown,
+      idleSeconds,
+      timelineBins,
+    }),
     reflectionLines: buildReflection({
       dominantApp,
       activeSeconds,
       idleSeconds,
+      trackedSeconds,
       switchCount,
       uniqueApps,
       longestSession,
     }),
+    sourceFileName: report?.source_file_name ?? 'No saved report file detected',
+    sourceFilePath: report?.source_file_path ?? '',
+    pollIntervalSeconds: report?.poll_interval_seconds ?? null,
+    idleThresholdSeconds: report?.idle_threshold_seconds ?? null,
     idleColor: IDLE_COLOR,
+    emptyColor: EMPTY_COLOR,
   }
 }

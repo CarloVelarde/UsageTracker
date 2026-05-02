@@ -1,19 +1,22 @@
 import { createElement } from 'react'
 import {
-  AlarmClockCheck,
   AppWindow,
-  CircleDot,
+  BarChart3,
   Clock3,
   Coffee,
   Compass,
   FileText,
   FolderKanban,
   Globe,
+  Home,
+  Layers3,
+  Leaf,
+  Lock,
   MonitorPlay,
-  MoonStar,
   Music4,
   Search,
-  ShieldEllipsis,
+  Settings,
+  Shuffle,
   TerminalSquare,
 } from 'lucide-react'
 import { motion } from 'motion/react'
@@ -28,7 +31,13 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { buildDashboardModel, formatClock, formatDuration, formatLongDate } from './dashboardData'
+import {
+  buildDashboardModel,
+  formatClock,
+  formatDuration,
+  formatLongDate,
+  formatPercent,
+} from './dashboardData'
 
 const reportFromWindow = window.__USAGE_REPORT__
 const report = reportFromWindow ?? {
@@ -38,7 +47,15 @@ const report = reportFromWindow ?? {
 }
 const model = buildDashboardModel(report)
 const MotionArticle = motion.article
-const MotionHeader = motion.header
+const MotionDiv = motion.div
+
+const NAV_ITEMS = [
+  { label: 'Today', Icon: Home, href: '#today', active: true },
+  { label: 'Timeline', Icon: BarChart3, href: '#timeline' },
+  { label: 'Apps', Icon: Layers3, href: '#apps' },
+  { label: 'Reflection', Icon: Leaf, href: '#reflection' },
+  { label: 'Settings', Icon: Settings, href: '#settings' },
+]
 
 const ICONS = {
   code: TerminalSquare,
@@ -53,12 +70,12 @@ const ICONS = {
 }
 
 const reveal = {
-  hidden: { opacity: 0, y: 24 },
+  hidden: { opacity: 0, y: 18 },
   visible: (delay = 0) => ({
     opacity: 1,
     y: 0,
     transition: {
-      duration: 0.68,
+      duration: 0.58,
       delay,
       ease: [0.22, 1, 0.36, 1],
     },
@@ -80,45 +97,23 @@ function resolveIcon(appName) {
   return ICONS.default
 }
 
-function StatCard({ Icon, label, value, tone, delay }) {
-  return (
-    <MotionArticle
-      className={`stat-card stat-card-${tone}`}
-      initial="hidden"
-      animate="visible"
-      custom={delay}
-      variants={reveal}
-    >
-      <div className="stat-icon-wrap">
-        {createElement(Icon, { size: 18, strokeWidth: 2.1 })}
-      </div>
-      <div>
-        <p className="eyebrow">{label}</p>
-        <h3>{value}</h3>
-      </div>
-    </MotionArticle>
-  )
-}
-
-function UsageTooltip({ active, payload, label }) {
+function ChartTooltip({ active, payload, label }) {
   if (!active || !payload?.length) {
     return null
   }
 
   const bucket = payload[0]?.payload
-  const activeSeconds = bucket?.active ?? 0
-  const idleSeconds = bucket?.idle ?? 0
 
   return (
     <div className="chart-tooltip">
-      <p>{label}</p>
-      <span>Active: {formatDuration(activeSeconds)}</span>
-      <span>Idle: {formatDuration(idleSeconds)}</span>
+      <strong>{label}</strong>
+      <span>Active {formatDuration(bucket?.active ?? 0)}</span>
+      <span>Idle {formatDuration(bucket?.idle ?? 0)}</span>
     </div>
   )
 }
 
-function PieTooltip({ active, payload }) {
+function AppTooltip({ active, payload }) {
   if (!active || !payload?.length) {
     return null
   }
@@ -130,359 +125,374 @@ function PieTooltip({ active, payload }) {
 
   return (
     <div className="chart-tooltip">
-      <p>{segment.name}</p>
+      <strong>{segment.name}</strong>
       <span>{formatDuration(segment.seconds)}</span>
-      <span>{Math.round(segment.share * 100)}% of active time</span>
+      <span>{formatPercent(segment.share)} of active time</span>
     </div>
+  )
+}
+
+function Panel({ className = '', delay = 0, id, children }) {
+  return (
+    <MotionArticle
+      className={`surface ${className}`}
+      id={id}
+      initial="hidden"
+      animate="visible"
+      custom={delay}
+      variants={reveal}
+    >
+      {children}
+    </MotionArticle>
+  )
+}
+
+function SectionHeading({ eyebrow, title, action }) {
+  return (
+    <div className="section-heading">
+      <div>
+        <p className="eyebrow">{eyebrow}</p>
+        <h2>{title}</h2>
+      </div>
+      {action}
+    </div>
+  )
+}
+
+function DataRow({ Icon, label, value }) {
+  return (
+    <div className="data-row">
+      <span>
+        {createElement(Icon, { size: 16, strokeWidth: 1.9 })}
+        {label}
+      </span>
+      <strong title={value}>{value}</strong>
+    </div>
+  )
+}
+
+function Sidebar() {
+  return (
+    <aside className="sidebar">
+      <div className="brand-mark" aria-label="Usage tracker">
+        <span />
+      </div>
+
+      <nav className="nav-list" aria-label="Dashboard sections">
+        {NAV_ITEMS.map(({ label, Icon, href, active }) => (
+          <a className={active ? 'nav-item nav-item-active' : 'nav-item'} href={href} key={label}>
+            {createElement(Icon, { size: 18, strokeWidth: 1.9 })}
+            <span>{label}</span>
+          </a>
+        ))}
+      </nav>
+
+      <div className="local-note">
+        <span className="status-dot" />
+        <div>
+          <strong>Local only</strong>
+          <p>Your data stays on this device.</p>
+        </div>
+      </div>
+    </aside>
+  )
+}
+
+function SummaryPanel() {
+  return (
+    <Panel className="summary-panel" delay={0.04} id="today">
+      <p className="eyebrow">Total tracked time</p>
+      <h1>{formatDuration(model.trackedSeconds)}</h1>
+
+      <div className="split-line" />
+
+      <div className="time-split">
+        <div>
+          <span className="split-label split-active">Active time</span>
+          <strong>{formatDuration(model.activeSeconds)}</strong>
+          <p>{formatPercent(model.activeShare)}</p>
+        </div>
+        <div>
+          <span className="split-label split-idle">Idle time</span>
+          <strong>{formatDuration(model.idleSeconds)}</strong>
+          <p>{formatPercent(model.idleShare)}</p>
+        </div>
+      </div>
+
+      <div className="summary-reflection" id="reflection">
+        <p>{model.reflectionLines[0]}</p>
+        <p>
+          {model.dominantApp
+            ? `${model.dominantApp.name} led active time; ${model.sessionCount} sessions and ${model.switchCount} app switches were captured.`
+            : `${model.sessionCount} sessions were captured.`}
+        </p>
+      </div>
+    </Panel>
+  )
+}
+
+function AppCompositionPanel() {
+  const hasApps = model.appBreakdown.length > 0
+
+  return (
+    <Panel className="app-panel" delay={0.08} id="apps">
+      <SectionHeading
+        eyebrow="Time by app"
+        title="Active time by app"
+        action={<span className="soft-pill">{model.topAppCountLabel}</span>}
+      />
+
+      <div className="app-composition">
+        <div className="donut-area">
+          {hasApps ? (
+            <ResponsiveContainer width="100%" height={330}>
+              <PieChart>
+                <Pie
+                  data={model.appBreakdown}
+                  dataKey="seconds"
+                  nameKey="name"
+                  innerRadius={92}
+                  outerRadius={140}
+                  paddingAngle={3}
+                  cornerRadius={12}
+                  stroke="rgba(255, 252, 246, 0.88)"
+                  strokeWidth={4}
+                >
+                  {model.appBreakdown.map((entry) => (
+                    <Cell key={entry.name} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip content={<AppTooltip />} />
+                <text x="50%" y="49%" textAnchor="middle" className="chart-center-value">
+                  {formatDuration(model.activeSeconds)}
+                </text>
+                <text x="50%" y="59%" textAnchor="middle" className="chart-center-label">
+                  active time
+                </text>
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="empty-donut">
+              <span>No active apps</span>
+            </div>
+          )}
+        </div>
+
+        <div className="app-list">
+          {hasApps ? (
+            model.appBreakdown.map((app) => {
+              const Icon = resolveIcon(app.name)
+
+              return (
+                <div className="app-row" key={app.name}>
+                  <div className="app-row-name">
+                    <span className="app-dot" style={{ backgroundColor: app.color }}>
+                      {createElement(Icon, { size: 15, strokeWidth: 2 })}
+                    </span>
+                    <strong>{app.name}</strong>
+                  </div>
+                  <span>{formatDuration(app.seconds)}</span>
+                  <span>{formatPercent(app.share)}</span>
+                </div>
+              )
+            })
+          ) : (
+            <p className="empty-copy">No active app sessions were captured in this report.</p>
+          )}
+        </div>
+      </div>
+    </Panel>
+  )
+}
+
+function TimelinePanel() {
+  return (
+    <Panel className="timeline-panel" delay={0.14} id="timeline">
+      <SectionHeading
+        eyebrow="Session timeline"
+        title="Timeline"
+        action={
+          <div className="timeline-legend">
+            {model.timelineLegendItems.map((item) => (
+              <span key={item.name}>
+                <i style={{ backgroundColor: item.color }} />
+                {item.name}
+              </span>
+            ))}
+          </div>
+        }
+      />
+
+      <div
+        className="timeline-track"
+        style={{ gridTemplateColumns: `repeat(${model.timelineBins.length}, minmax(0, 1fr))` }}
+      >
+        {model.timelineBins.map((bin) => (
+          <div
+            className={bin.isEmpty ? 'timeline-bin timeline-bin-empty' : 'timeline-bin'}
+            key={bin.id}
+            title={bin.tooltip}
+            style={{ backgroundColor: bin.color }}
+          />
+        ))}
+      </div>
+
+      <div className="timeline-ticks">
+        {model.timelineTicks.map((tick) => (
+          <span key={`${tick.label}-${tick.left}`} style={{ left: `${tick.left}%` }}>
+            {tick.label}
+          </span>
+        ))}
+      </div>
+
+      <div className="timeline-apps">
+        {model.timelineLegendItems.slice(0, 9).map((item) => (
+          <span key={item.name}>
+            <i style={{ backgroundColor: item.color }} />
+            {item.name}
+            {item.seconds > 0 ? ` ${formatDuration(item.seconds)}` : ''}
+          </span>
+        ))}
+      </div>
+    </Panel>
+  )
+}
+
+function RhythmPanel() {
+  return (
+    <Panel className="rhythm-panel" delay={0.18}>
+      <SectionHeading
+        eyebrow="Activity rhythm"
+        title="How activity rose and fell"
+        action={<span className="soft-pill">{formatPercent(model.activeShare)} active</span>}
+      />
+
+      <div className="rhythm-chart">
+        <ResponsiveContainer width="100%" height={190}>
+          <BarChart data={model.activityBuckets} barGap={3}>
+            <XAxis
+              dataKey="label"
+              ticks={model.activityTickLabels}
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: '#8a8174', fontSize: 12 }}
+            />
+            <YAxis hide />
+            <Tooltip cursor={{ fill: 'rgba(136, 112, 77, 0.06)' }} content={<ChartTooltip />} />
+            <Bar dataKey="magnitude" radius={[7, 7, 0, 0]}>
+              {model.activityBuckets.map((bucket) => (
+                <Cell
+                  key={bucket.id}
+                  fill={
+                    bucket.tone === 'active'
+                      ? '#9ac8a8'
+                      : bucket.tone === 'idle'
+                        ? model.idleColor
+                        : model.emptyColor
+                  }
+                />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </Panel>
+  )
+}
+
+function StatsPanel() {
+  return (
+    <Panel className="stats-panel" delay={0.1}>
+      <div className="stat-item stat-sage">
+        <Layers3 size={19} strokeWidth={1.9} />
+        <span>Sessions</span>
+        <strong>{model.sessionCount}</strong>
+      </div>
+      <div className="stat-item stat-sky">
+        <Clock3 size={19} strokeWidth={1.9} />
+        <span>Longest</span>
+        <strong>{model.longestSession ? formatDuration(model.longestSession.duration_seconds) : 'None'}</strong>
+        <small>{model.longestSession ? model.longestSession.app_display_name : 'No active stretch'}</small>
+      </div>
+      <div className="stat-item stat-peach">
+        <Coffee size={19} strokeWidth={1.9} />
+        <span>Break time</span>
+        <strong>{formatDuration(model.idleSeconds)}</strong>
+        <small>{model.breakCount} idle {model.breakCount === 1 ? 'break' : 'breaks'}</small>
+      </div>
+      <div className="stat-item stat-gold">
+        <Shuffle size={19} strokeWidth={1.9} />
+        <span>Switches</span>
+        <strong>{model.switchCount}</strong>
+      </div>
+    </Panel>
+  )
+}
+
+function DataPanel() {
+  return (
+    <Panel className="data-panel" delay={0.22} id="settings">
+      <SectionHeading eyebrow="About this data" title="Stored locally" />
+      <DataRow
+        Icon={Clock3}
+        label="Poll interval"
+        value={model.pollIntervalSeconds == null ? 'Unknown' : `${model.pollIntervalSeconds} seconds`}
+      />
+      <DataRow
+        Icon={Coffee}
+        label="Idle threshold"
+        value={model.idleThresholdSeconds == null ? 'Unknown' : `${model.idleThresholdSeconds} seconds`}
+      />
+      <DataRow Icon={FileText} label="Source file" value={model.sourceFileName} />
+    </Panel>
   )
 }
 
 function App() {
   return (
-    <main className="dashboard-shell">
-      <div className="ambient ambient-left" />
-      <div className="ambient ambient-right" />
+    <main className="app-shell">
+      <Sidebar />
 
-      <MotionHeader
-        className="hero-panel"
-        initial="hidden"
-        animate="visible"
-        custom={0.05}
-        variants={reveal}
-      >
-        <div className="hero-copy">
-          <div className="hero-kicker">
-            <span className="hero-dot" />
-            Ambient daily reflection
+      <section className="dashboard">
+        <MotionDiv
+          className="topbar"
+          initial="hidden"
+          animate="visible"
+          custom={0}
+          variants={reveal}
+        >
+          <div>
+            <h2>{formatLongDate(model.runStart)}</h2>
           </div>
-          <h1>Today&apos;s Computer Usage</h1>
-          <p>
-            A calm local summary of your screen habits, built for reflection
-            instead of pressure.
-          </p>
+
+          <div className="topbar-actions">
+            <span className="stopped-at">
+              Tracking stopped at {formatClock(model.runEnd)}
+              <i />
+            </span>
+            <a className="source-button" href="./report.json" target="_blank" rel="noreferrer" title={model.sourceFilePath || model.sourceFileName}>
+              <FileText size={17} strokeWidth={1.9} />
+              View source report
+            </a>
+          </div>
+        </MotionDiv>
+
+        <div className="dashboard-grid">
+          <SummaryPanel />
+          <AppCompositionPanel />
+          <StatsPanel />
+
+          <TimelinePanel />
+          <RhythmPanel />
+          <DataPanel />
         </div>
 
-        <div className="hero-meta">
-          <div className="date-pill">
-            <MoonStar size={16} strokeWidth={2.1} />
-            {formatLongDate(model.runStart)}
-          </div>
-          <div className="span-pill">
-            <Clock3 size={16} strokeWidth={2.1} />
-            {formatClock(model.runStart)} to {formatClock(model.runEnd)}
-          </div>
+        <div className="footer-note">
+          <Lock size={15} strokeWidth={1.9} />
+          All data is stored locally on your device.
         </div>
-      </MotionHeader>
-
-      <section className="stats-grid">
-        <StatCard
-          Icon={AlarmClockCheck}
-          label="Tracked time"
-          value={formatDuration(model.trackedSeconds)}
-          tone="blue"
-          delay={0.1}
-        />
-        <StatCard
-          Icon={ShieldEllipsis}
-          label="Active time"
-          value={formatDuration(model.activeSeconds)}
-          tone="green"
-          delay={0.16}
-        />
-        <StatCard
-          Icon={Coffee}
-          label="Idle time"
-          value={formatDuration(model.idleSeconds)}
-          tone="rose"
-          delay={0.22}
-        />
-        <StatCard
-          Icon={CircleDot}
-          label="App switches"
-          value={`${model.switchCount}`}
-          tone="gold"
-          delay={0.28}
-        />
       </section>
 
-      <section className="content-grid">
-        <MotionArticle
-          className="panel panel-share"
-          initial="hidden"
-          animate="visible"
-          custom={0.16}
-          variants={reveal}
-        >
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">App composition</p>
-              <h2>Where your active time went</h2>
-            </div>
-            <div className="pill pill-soft">
-              <Compass size={15} strokeWidth={2.1} />
-              Top 5 of {model.uniqueApps} apps
-            </div>
-          </div>
-
-          <div className="share-layout">
-            <div className="donut-wrap">
-              <ResponsiveContainer width="100%" height={280}>
-                <PieChart>
-                  <Pie
-                    data={model.appBreakdown}
-                    dataKey="seconds"
-                    nameKey="name"
-                    innerRadius={72}
-                    outerRadius={108}
-                    paddingAngle={3}
-                    stroke="rgba(255,255,255,0.56)"
-                    strokeWidth={3}
-                  >
-                    {model.appBreakdown.map((entry) => (
-                      <Cell key={entry.name} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<PieTooltip />} />
-                  <text
-                    x="50%"
-                    y="47%"
-                    textAnchor="middle"
-                    className="chart-center-label"
-                  >
-                    {formatDuration(model.activeSeconds)}
-                  </text>
-                  <text
-                    x="50%"
-                    y="57%"
-                    textAnchor="middle"
-                    className="chart-center-subtitle"
-                  >
-                    active focus
-                  </text>
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="app-list">
-              {model.appBreakdown.map((app) => {
-                const Icon = resolveIcon(app.name)
-
-                return (
-                  <div className="app-row" key={app.name}>
-                    <div className="app-row-main">
-                      <span
-                        className="app-chip"
-                        style={{ backgroundColor: `${app.color}22`, color: app.color }}
-                      >
-                        {createElement(Icon, { size: 16, strokeWidth: 2.1 })}
-                      </span>
-                      <div>
-                        <strong>{app.name}</strong>
-                        <p>{Math.round(app.share * 100)}% of active usage</p>
-                      </div>
-                    </div>
-                    <div className="app-row-side">
-                      <span>{formatDuration(app.seconds)}</span>
-                      <div className="app-bar-track">
-                        <div
-                          className="app-bar-fill"
-                          style={{
-                            width: `${Math.max(app.share * 100, 6)}%`,
-                            background: app.color,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </MotionArticle>
-
-        <MotionArticle
-          className="panel panel-timeline"
-          initial="hidden"
-          animate="visible"
-          custom={0.22}
-          variants={reveal}
-        >
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Session flow</p>
-              <h2>Timeline of your day</h2>
-            </div>
-            <div className="pill">
-              <Clock3 size={15} strokeWidth={2.1} />
-              {model.sessionCount} captured sessions
-            </div>
-          </div>
-
-          <div className="timeline-legend">
-            {model.appBreakdown.slice(0, 4).map((app) => (
-              <span className="legend-chip" key={app.name}>
-                <span
-                  className="legend-swatch"
-                  style={{ backgroundColor: app.color }}
-                />
-                {app.name}
-              </span>
-            ))}
-            {model.idleSeconds > 0 && (
-              <span className="legend-chip">
-                <span
-                  className="legend-swatch"
-                  style={{ backgroundColor: model.idleColor }}
-                />
-                Idle
-              </span>
-            )}
-          </div>
-
-          <div className="timeline-card">
-            <div
-              className="timeline-track"
-              style={{
-                gridTemplateColumns: `repeat(${model.timelineBins.length}, minmax(0, 1fr))`,
-              }}
-            >
-              {model.timelineBins.map((bin) => (
-                <div
-                  className={`timeline-bin${bin.isIdle ? ' timeline-idle' : ''}${bin.isEmpty ? ' timeline-empty' : ''}`}
-                  key={bin.id}
-                  title={bin.tooltip}
-                  style={{ background: bin.color }}
-                />
-              ))}
-            </div>
-
-            <div className="timeline-ticks">
-              {model.timelineTicks.map((tick) => (
-                <div
-                  className="timeline-tick"
-                  key={tick.label + tick.left}
-                  style={{ left: `${tick.left}%` }}
-                >
-                  <span />
-                  <p>{tick.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="timeline-summary">
-            <div>
-              <p className="eyebrow">Longest stretch</p>
-              <strong>
-                {model.longestSession
-                  ? `${formatDuration(model.longestSession.duration_seconds)} in ${model.longestSession.app_display_name}`
-                  : 'No active stretch captured'}
-              </strong>
-            </div>
-            <div>
-              <p className="eyebrow">Break count</p>
-              <strong>{model.breakCount} pauses</strong>
-            </div>
-          </div>
-        </MotionArticle>
-
-        <MotionArticle
-          className="panel panel-rhythm"
-          initial="hidden"
-          animate="visible"
-          custom={0.28}
-          variants={reveal}
-        >
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Usage rhythm</p>
-              <h2>How activity rose and fell</h2>
-            </div>
-            <div className="pill pill-soft">
-              <ShieldEllipsis size={15} strokeWidth={2.1} />
-              {Math.round(model.activeShare * 100)}% active
-            </div>
-          </div>
-
-          <div className="chart-wrap">
-            <ResponsiveContainer width="100%" height={290}>
-              <BarChart data={model.activityBuckets} barGap={8}>
-                <XAxis
-                  dataKey="label"
-                  ticks={model.activityTickLabels}
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#6d7694', fontSize: 12 }}
-                />
-                <YAxis hide />
-                <Tooltip cursor={{ fill: 'rgba(109, 121, 168, 0.08)' }} content={<UsageTooltip />} />
-                <Bar dataKey="magnitude" radius={[10, 10, 0, 0]}>
-                  {model.activityBuckets.map((bucket) => (
-                    <Cell
-                      key={bucket.id}
-                      fill={
-                        bucket.tone === 'active'
-                          ? '#5b7cfa'
-                          : bucket.tone === 'idle'
-                            ? model.idleColor
-                            : '#e8edf8'
-                      }
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </MotionArticle>
-
-        <MotionArticle
-          className="panel panel-reflection"
-          initial="hidden"
-          animate="visible"
-          custom={0.34}
-          variants={reveal}
-        >
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">Reflection</p>
-              <h2>What stands out</h2>
-            </div>
-            <div className="pill">
-              <MoonStar size={15} strokeWidth={2.1} />
-              local only
-            </div>
-          </div>
-
-          <div className="reflection-card">
-            {model.sessionCount > 0 ? (
-              model.reflectionLines.map((line) => (
-                <p key={line}>{line}</p>
-              ))
-            ) : (
-              <p>No report data was loaded into this dashboard snapshot.</p>
-            )}
-          </div>
-
-          <div className="insight-grid">
-            <div className="insight">
-              <span>Most used app</span>
-              <strong>{model.dominantApp?.name ?? 'Unknown'}</strong>
-            </div>
-            <div className="insight">
-              <span>Source file</span>
-              <strong>{report.source_file_name ?? 'No saved report file detected'}</strong>
-            </div>
-            <div className="insight">
-              <span>Tracked mode</span>
-              <strong>Apps + idle only</strong>
-            </div>
-            <div className="insight">
-              <span>Website tracking</span>
-              <strong>Planned next</strong>
-            </div>
-          </div>
-        </MotionArticle>
-      </section>
     </main>
   )
 }
