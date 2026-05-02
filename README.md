@@ -44,17 +44,18 @@ python -m usage_tracker
 Use this when you just want to track locally without setting up Python or Node.
 
 ```powershell
-dist\UsageTracker\UsageTracker.exe
+dist\UsageTrackerV1.exe
 ```
 
 - The console window stays open while tracking is active.
 - Press `Ctrl+C` to stop.
-- On Windows, closing the console window also attempts a graceful shutdown.
+- Closing the console window also attempts a graceful shutdown.
 - Packaged runtime files are saved under `%LOCALAPPDATA%\UsageTracker\`.
 - Packaged JSON reports are saved under `%LOCALAPPDATA%\UsageTracker\reports\`.
 - Each packaged dashboard snapshot also keeps its own `report.json` copy under `%LOCALAPPDATA%\UsageTracker\state\dashboard-snapshots\`.
 - Packaged same-day aggregation reads from `reports/` only. The old `data/` folder is no longer used by the executable.
-- When tracking stops, the app opens a local dashboard snapshot in your browser and then exits. It does not keep a background `UsageTracker.exe` running.
+- When tracking stops, the app opens a local dashboard snapshot in your browser and then exits. It does not keep a background `UsageTrackerV1.exe` running.
+- `dist\UsageTrackerV1.exe` is a single-file executable. You can copy that file to your Desktop and double-click it.
 
 ## Rebuild The Executable
 
@@ -74,13 +75,13 @@ This script:
 
 - installs or refreshes PyInstaller for the builder Python environment
 - builds the React dashboard into `dashboard/dist/`
-- packages the app from `packaging/usage_tracker.spec` into `dist/UsageTracker/`
+- writes a single-file executable to `dist\UsageTrackerV1.exe`
 
-The milestone-1 deliverable is the full `dist/UsageTracker/` folder.
+The milestone-1 deliverable is the single `dist\UsageTrackerV1.exe` file.
 
 ## Notes
 
 - The dashboard aggregates all runs from the same day.
 - The dashboard always includes the run that just ended, even before older same-day files are aggregated in.
-- The dashboard opens from a local snapshot on disk after tracking stops, so stopping tracking also ends the `UsageTracker.exe` process.
+- The dashboard opens from a local snapshot on disk after tracking stops, so stopping tracking also ends the `UsageTrackerV1.exe` process.
 - For packaging details, see [DOCS/BuildAndPackage.md](/C:/Users/Carlo/Documents/Playground/DOCS/BuildAndPackage.md).

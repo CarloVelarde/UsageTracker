@@ -33,10 +33,18 @@ function Invoke-NativeCommand {
 }
 
 function Get-RunningUsageTrackerProcesses {
+  $targetExecutablePaths = @(
+    (Join-Path $repoRoot "dist\\UsageTrackerV1.exe"),
+    (Join-Path $repoRoot "dist\\UsageTracker\\UsageTrackerV1.exe"),
+    (Join-Path $repoRoot "dist\\UsageTracker\\UsageTracker.exe")
+  ) | ForEach-Object {
+    [System.IO.Path]::GetFullPath($_)
+  }
+
   Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
     Where-Object {
-      $_.Name -eq "UsageTracker.exe" -and
-      $_.ExecutablePath -eq (Join-Path $repoRoot "dist\\UsageTracker\\UsageTracker.exe")
+      $_.Name -like "UsageTracker*.exe" -and
+      $targetExecutablePaths -contains $_.ExecutablePath
     }
 }
 
@@ -56,7 +64,7 @@ function Assert-PackagedAppNotRunning {
 
   $processList = ($runningProcesses | ForEach-Object { "$($_.ProcessId)" }) -join ", "
   throw @"
-The packaged app is still running and locking dist\UsageTracker\UsageTracker.exe.
+The packaged app is still running and locking a generated executable.
 
 Running process id(s): $processList
 
@@ -66,6 +74,21 @@ Close the running UsageTracker process first, or rerun the build with:
 
 .\scripts\build_windows.ps1 -StopRunningApp
 "@
+}
+
+function Remove-StaleOneFolderOutput {
+  $repoRootPath = [System.IO.Path]::GetFullPath($repoRoot).TrimEnd([System.IO.Path]::DirectorySeparatorChar)
+  $staleOutputPath = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "dist\\UsageTracker"))
+  if (-not $staleOutputPath.StartsWith("$repoRootPath$([System.IO.Path]::DirectorySeparatorChar)", [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to remove stale output outside the repo: $staleOutputPath"
+  }
+
+  if (-not (Test-Path -LiteralPath $staleOutputPath)) {
+    return
+  }
+
+  Write-Host "Removing stale one-folder output: dist\UsageTracker"
+  Remove-Item -LiteralPath $staleOutputPath -Recurse -Force
 }
 
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
@@ -80,6 +103,7 @@ Push-Location $repoRoot
 
 try {
   Assert-PackagedAppNotRunning
+  Remove-StaleOneFolderOutput
 
   if (-not $SkipDependencyInstall) {
     Write-Host "Installing or refreshing build dependencies..."
@@ -108,8 +132,8 @@ try {
 
   Write-Host ""
   Write-Host "Build complete."
-  Write-Host "Executable: dist\UsageTracker\UsageTracker.exe"
-  Write-Host "Share the full dist\UsageTracker folder for milestone 1."
+  Write-Host "Executable: dist\UsageTrackerV1.exe"
+  Write-Host "You can copy that single .exe to your Desktop and double-click it."
 }
 finally {
   Pop-Location
