@@ -34,6 +34,7 @@ function Invoke-NativeCommand {
 
 function Get-RunningUsageTrackerProcesses {
   $targetExecutablePaths = @(
+    (Join-Path $repoRoot "dist\\UsageTracker.exe"),
     (Join-Path $repoRoot "dist\\UsageTrackerV1.exe"),
     (Join-Path $repoRoot "dist\\UsageTracker\\UsageTrackerV1.exe"),
     (Join-Path $repoRoot "dist\\UsageTracker\\UsageTracker.exe")
@@ -91,6 +92,21 @@ function Remove-StaleOneFolderOutput {
   Remove-Item -LiteralPath $staleOutputPath -Recurse -Force
 }
 
+function Remove-StaleExecutableOutput {
+  $repoRootPath = [System.IO.Path]::GetFullPath($repoRoot).TrimEnd([System.IO.Path]::DirectorySeparatorChar)
+  $staleOutputPath = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "dist\\UsageTrackerV1.exe"))
+  if (-not $staleOutputPath.StartsWith("$repoRootPath$([System.IO.Path]::DirectorySeparatorChar)", [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to remove stale output outside the repo: $staleOutputPath"
+  }
+
+  if (-not (Test-Path -LiteralPath $staleOutputPath)) {
+    return
+  }
+
+  Write-Host "Removing stale executable output: dist\UsageTrackerV1.exe"
+  Remove-Item -LiteralPath $staleOutputPath -Force
+}
+
 $repoRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $pythonExe = Require-Command -Name "python"
 $npmExe = Require-Command -Name "npm"
@@ -104,6 +120,7 @@ Push-Location $repoRoot
 try {
   Assert-PackagedAppNotRunning
   Remove-StaleOneFolderOutput
+  Remove-StaleExecutableOutput
 
   if (-not $SkipDependencyInstall) {
     Write-Host "Installing or refreshing build dependencies..."
@@ -132,7 +149,7 @@ try {
 
   Write-Host ""
   Write-Host "Build complete."
-  Write-Host "Executable: dist\UsageTrackerV1.exe"
+  Write-Host "Executable: dist\UsageTracker.exe"
   Write-Host "You can copy that single .exe to your Desktop and double-click it."
 }
 finally {

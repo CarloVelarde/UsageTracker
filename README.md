@@ -44,7 +44,7 @@ python -m usage_tracker
 Use this when you just want to track locally without setting up Python or Node.
 
 ```powershell
-dist\UsageTrackerV1.exe
+dist\UsageTracker.exe
 ```
 
 - The console window stays open while tracking is active.
@@ -54,8 +54,8 @@ dist\UsageTrackerV1.exe
 - Packaged JSON reports are saved under `%LOCALAPPDATA%\UsageTracker\reports\`.
 - Each packaged dashboard snapshot also keeps its own `report.json` copy under `%LOCALAPPDATA%\UsageTracker\state\dashboard-snapshots\`.
 - Packaged same-day aggregation reads from `reports/` only. The old `data/` folder is no longer used by the executable.
-- When tracking stops, the app opens a local dashboard snapshot in your browser and then exits. It does not keep a background `UsageTrackerV1.exe` running.
-- `dist\UsageTrackerV1.exe` is a single-file executable. You can copy that file to your Desktop and double-click it.
+- When tracking stops, the app opens a local dashboard snapshot in your browser and then exits. It does not keep a background `UsageTracker.exe` running.
+- `dist\UsageTracker.exe` is a single-file executable. You can copy that file to your Desktop and double-click it, or manually archive it under `releases\UsageTrackerV1\UsageTrackerV1.exe`.
 
 ## Rebuild The Executable
 
@@ -75,13 +75,13 @@ This script:
 
 - installs or refreshes PyInstaller for the builder Python environment
 - builds the React dashboard into `dashboard/dist/`
-- writes a single-file executable to `dist\UsageTrackerV1.exe`
+- writes a single-file executable to `dist\UsageTracker.exe`
 
-The milestone-1 deliverable is the single `dist\UsageTrackerV1.exe` file.
+The latest build output is the single `dist\UsageTracker.exe` file.
 
 ## Notes
 
 - The dashboard aggregates all runs from the same day.
 - The dashboard always includes the run that just ended, even before older same-day files are aggregated in.
-- The dashboard opens from a local snapshot on disk after tracking stops, so stopping tracking also ends the `UsageTrackerV1.exe` process.
+- The dashboard opens from a local snapshot on disk after tracking stops, so stopping tracking also ends the `UsageTracker.exe` process.
 - For packaging details, see [DOCS/BuildAndPackage.md](/C:/Users/Carlo/Documents/Playground/DOCS/BuildAndPackage.md).
