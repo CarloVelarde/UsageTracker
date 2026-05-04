@@ -6,6 +6,7 @@ import {
   Coffee,
   Compass,
   FileText,
+  Flower2,
   FolderKanban,
   Globe,
   Home,
@@ -17,7 +18,9 @@ import {
   Search,
   Settings,
   Shuffle,
+  Sprout,
   TerminalSquare,
+  Trees,
 } from 'lucide-react'
 import { motion } from 'motion/react'
 import {
@@ -107,6 +110,7 @@ function ChartTooltip({ active, payload, label }) {
   return (
     <div className="chart-tooltip">
       <strong>{label}</strong>
+      <span>{bucket?.densityLabel ?? 'Activity rhythm'}</span>
       <span>Active {formatDuration(bucket?.active ?? 0)}</span>
       <span>Idle {formatDuration(bucket?.idle ?? 0)}</span>
     </div>
@@ -132,7 +136,7 @@ function AppTooltip({ active, payload }) {
   )
 }
 
-function Panel({ className = '', delay = 0, id, children }) {
+function Panel({ className = '', delay = 0, id, AccentIcon, children }) {
   return (
     <MotionArticle
       className={`surface ${className}`}
@@ -142,6 +146,11 @@ function Panel({ className = '', delay = 0, id, children }) {
       custom={delay}
       variants={reveal}
     >
+      {AccentIcon ? (
+        <span className="panel-botanical" aria-hidden="true">
+          {createElement(AccentIcon, { size: 32, strokeWidth: 1.45 })}
+        </span>
+      ) : null}
       {children}
     </MotionArticle>
   )
@@ -200,7 +209,7 @@ function Sidebar() {
 
 function SummaryPanel() {
   return (
-    <Panel className="summary-panel" delay={0.04} id="today">
+    <Panel className="summary-panel" delay={0.04} id="today" AccentIcon={Sprout}>
       <p className="eyebrow">Total tracked time</p>
       <h1>{formatDuration(model.trackedSeconds)}</h1>
 
@@ -235,7 +244,7 @@ function AppCompositionPanel() {
   const hasApps = model.appBreakdown.length > 0
 
   return (
-    <Panel className="app-panel" delay={0.08} id="apps">
+    <Panel className="app-panel" delay={0.08} id="apps" AccentIcon={Flower2}>
       <SectionHeading
         eyebrow="Time by app"
         title="Active time by app"
@@ -307,7 +316,7 @@ function AppCompositionPanel() {
 
 function TimelinePanel() {
   return (
-    <Panel className="timeline-panel" delay={0.14} id="timeline">
+    <Panel className="timeline-panel" delay={0.14} id="timeline" AccentIcon={Trees}>
       <SectionHeading
         eyebrow="Session timeline"
         title="Timeline"
@@ -360,11 +369,19 @@ function TimelinePanel() {
 
 function RhythmPanel() {
   return (
-    <Panel className="rhythm-panel" delay={0.18}>
+    <Panel className="rhythm-panel" delay={0.18} AccentIcon={Leaf}>
       <SectionHeading
         eyebrow="Activity rhythm"
         title="How activity rose and fell"
-        action={<span className="soft-pill">{formatPercent(model.activeShare)} active</span>}
+        action={
+          <div className="rhythm-heading-actions">
+            <span className="soft-pill">{formatPercent(model.activeShare)} active</span>
+            <div className="rhythm-key" aria-label="Activity rhythm color key">
+              <span><i className="key-active" /> Active density</span>
+              <span><i className="key-idle" /> Idle breaks</span>
+            </div>
+          </div>
+        }
       />
 
       <div className="rhythm-chart">
@@ -377,7 +394,7 @@ function RhythmPanel() {
               tickLine={false}
               tick={{ fill: '#8a8174', fontSize: 12 }}
             />
-            <YAxis hide />
+            <YAxis hide domain={[0, 100]} />
             <Tooltip cursor={{ fill: 'rgba(136, 112, 77, 0.06)' }} content={<ChartTooltip />} />
             <Bar dataKey="magnitude" radius={[7, 7, 0, 0]}>
               {model.activityBuckets.map((bucket) => (
@@ -402,7 +419,7 @@ function RhythmPanel() {
 
 function StatsPanel() {
   return (
-    <Panel className="stats-panel" delay={0.1}>
+    <Panel className="stats-panel" delay={0.1} AccentIcon={Leaf}>
       <div className="stat-item stat-sage">
         <Layers3 size={19} strokeWidth={1.9} />
         <span>Sessions</span>
@@ -431,7 +448,7 @@ function StatsPanel() {
 
 function DataPanel() {
   return (
-    <Panel className="data-panel" delay={0.22} id="settings">
+    <Panel className="data-panel" delay={0.22} id="settings" AccentIcon={Sprout}>
       <SectionHeading eyebrow="About this data" title="Stored locally" />
       <DataRow
         Icon={Clock3}

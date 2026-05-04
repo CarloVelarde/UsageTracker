@@ -108,6 +108,9 @@ function createTimeBuckets(sessions, runStart, runEnd, minBuckets, maxBuckets, t
     let active = 0
     let idle = 0
     const appUsage = new Map()
+    const activeApps = new Set()
+    let activeTouches = 0
+    let idleTouches = 0
 
     sessions.forEach((session) => {
       const sessionStart = toDate(session.start_timestamp)
@@ -122,9 +125,12 @@ function createTimeBuckets(sessions, runStart, runEnd, minBuckets, maxBuckets, t
       const overlapSeconds = (overlapEnd - overlapStart) / 1000
       if (session.session_type === 'idle') {
         idle += overlapSeconds
+        idleTouches += 1
         appUsage.set('Idle', (appUsage.get('Idle') ?? 0) + overlapSeconds)
       } else {
         active += overlapSeconds
+        activeTouches += 1
+        activeApps.add(session.app_display_name)
         appUsage.set(
           session.app_display_name,
           (appUsage.get(session.app_display_name) ?? 0) + overlapSeconds,
@@ -149,6 +155,10 @@ function createTimeBuckets(sessions, runStart, runEnd, minBuckets, maxBuckets, t
       active,
       idle,
       total: active + idle,
+      capacity: (end - start) / 1000,
+      activeTouches,
+      idleTouches,
+      activeAppCount: activeApps.size,
       dominantApp,
       dominantSeconds,
       isIdle: dominantApp === 'Idle',
@@ -175,11 +185,40 @@ function createTimelineBins(sessions, runStart, runEnd, appColors) {
 }
 
 function createRhythmBuckets(sessions, runStart, runEnd) {
-  return createTimeBuckets(sessions, runStart, runEnd, 24, 56, 18).map((bucket) => ({
-    ...bucket,
-    magnitude: bucket.active > 0 ? bucket.active : bucket.idle,
-    tone: bucket.active > 0 ? 'active' : bucket.idle > 0 ? 'idle' : 'empty',
-  }))
+  const buckets = createTimeBuckets(sessions, runStart, runEnd, 24, 56, 18)
+  const maxActiveTouches = Math.max(...buckets.map((bucket) => bucket.activeTouches), 1)
+  const maxActiveApps = Math.max(...buckets.map((bucket) => bucket.activeAppCount), 1)
+
+  return buckets.map((bucket) => {
+    const activeCoverage = clamp(bucket.active / Math.max(bucket.capacity, 1), 0, 1)
+    const idleCoverage = clamp(bucket.idle / Math.max(bucket.capacity, 1), 0, 1)
+    const touchDensity = clamp(bucket.activeTouches / maxActiveTouches, 0, 1)
+    const appVariety = clamp(bucket.activeAppCount / maxActiveApps, 0, 1)
+    const activityDensity =
+      activeCoverage * 0.68 + touchDensity * 0.24 + appVariety * 0.08
+    const magnitude =
+      bucket.active > 0
+        ? 16 + activityDensity * 84
+        : bucket.idle > 0
+          ? 10 + idleCoverage * 48
+          : 5
+
+    return {
+      ...bucket,
+      magnitude,
+      tone: bucket.active > 0 ? 'active' : bucket.idle > 0 ? 'idle' : 'empty',
+      densityLabel:
+        bucket.active > 0
+          ? activityDensity >= 0.82
+            ? 'Peak activity'
+            : activityDensity >= 0.55
+              ? 'Steady activity'
+              : 'Light activity'
+          : bucket.idle > 0
+            ? 'Idle break'
+            : 'No data',
+    }
+  })
 }
 
 function createBucketTickLabels(buckets, tickCount = 5) {
@@ -342,7 +381,7 @@ export function buildDashboardModel(report) {
     color: APP_COLORS[index % APP_COLORS.length],
     share: activeSeconds > 0 ? app.seconds / activeSeconds : 0,
   }))
-  const appBreakdown = allAppBreakdown.slice(0, 7)
+  const appBreakdown = allAppBreakdown.slice(0, 6)
   const appColors = new Map(
     allAppBreakdown.map((app) => [app.name, app.color]),
   )
